@@ -2617,7 +2617,7 @@ RETURNS text
 AS 'MODULE_PATHNAME','orafce_listagg_finalfn'
 LANGUAGE C IMMUTABLE;
 
-CREATE AGGREGATE pg_catalog.listagg(text) (
+CREATE AGGREGATE oracle.listagg(text) (
   SFUNC=pg_catalog.listagg1_transfn,
   STYPE=internal,
   FINALFUNC=pg_catalog.listagg_finalfn
@@ -2633,7 +2633,7 @@ CREATE AGGREGATE pg_catalog.wm_concat(text) (
   FINALFUNC=pg_catalog.listagg_finalfn
 );
 
-CREATE AGGREGATE pg_catalog.listagg(text, text) (
+CREATE AGGREGATE oracle.listagg(text, text) (
   SFUNC=pg_catalog.listagg2_transfn,
   STYPE=internal,
   FINALFUNC=pg_catalog.listagg_finalfn

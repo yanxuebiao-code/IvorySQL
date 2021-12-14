@@ -1,4 +1,5 @@
 -- Tests for the aggregate listagg
+SET search_path TO oracle,"$user", public, pg_catalog;
 SELECT listagg(i::text) from generate_series(1,3) g(i);
  listagg 
 ---------
@@ -29,6 +30,7 @@ SELECT wm_concat(i::text) from generate_series(1,3) g(i);
  1,2,3
 (1 row)
 
+set search_path to default;
 -- Tests for the aggregate median( real | double )
 CREATE FUNCTION checkMedianRealOdd()  RETURNS real AS $$
 DECLARE
