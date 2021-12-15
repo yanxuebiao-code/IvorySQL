@@ -3108,12 +3108,6 @@ LANGUAGE internal
 STRICT IMMUTABLE;
 COMMENT ON FUNCTION pg_catalog.lengthb(oracle.varchar2) IS 'returns byte length of the input varchar2 string';
 
-CREATE OR REPLACE FUNCTION pg_catalog.strposb(oracle.varchar2, oracle.varchar2) RETURNS integer
-AS 'byteapos'
-LANGUAGE internal
-STRICT IMMUTABLE;
-COMMENT ON FUNCTION pg_catalog.strposb(oracle.varchar2, oracle.varchar2) IS 'returns the byte position of a specified string in the input varchar2 string';
-
 -- oracle.nvarchar2 type support
 
 CREATE FUNCTION oracle.nvarchar2in(cstring,oid,integer)
@@ -7268,3 +7262,58 @@ CREATE OR REPLACE FUNCTION oracle.substrb(interval, float8) RETURNS oracle.varch
 AS $$ SELECT oracle.substrb($1::text, trunc($2)::int) $$
 LANGUAGE SQL IMMUTABLE STRICT;
 COMMENT ON FUNCTION oracle.substrb(interval, float8) IS 'extracts specified number of bytes from the input string starting at the specified byte position (1-based) and returns as a varchar2 string';
+
+--strposb function
+CREATE OR REPLACE FUNCTION oracle.strposb(text, variadic "any") RETURNS integer
+AS 'MODULE_PATHNAME', 'orafce_strposb'
+LANGUAGE C
+STRICT IMMUTABLE;
+COMMENT ON FUNCTION oracle.strposb(text, variadic "any") IS 'returns the byte position of a specified string in the input string';
+
+CREATE OR REPLACE FUNCTION oracle.strposb(char, variadic "any") RETURNS integer
+AS 'MODULE_PATHNAME', 'orafce_strposb'
+LANGUAGE C
+STRICT IMMUTABLE;
+COMMENT ON FUNCTION oracle.strposb(char, variadic "any") IS 'returns the byte position of a specified string in the input string';
+
+CREATE OR REPLACE FUNCTION oracle.strposb(numeric, variadic "any") RETURNS integer
+AS 'MODULE_PATHNAME', 'orafce_strposb'
+LANGUAGE C
+STRICT IMMUTABLE;
+COMMENT ON FUNCTION oracle.strposb(numeric, variadic "any") IS 'returns the byte position of a specified string in the input string';
+
+CREATE OR REPLACE FUNCTION oracle.strposb(float4, variadic "any") RETURNS integer
+AS 'MODULE_PATHNAME', 'orafce_strposb'
+LANGUAGE C
+STRICT IMMUTABLE;
+COMMENT ON FUNCTION oracle.strposb(float4, variadic "any") IS 'returns the byte position of a specified string in the input string';
+
+CREATE OR REPLACE FUNCTION oracle.strposb(float8, variadic "any") RETURNS integer
+AS 'MODULE_PATHNAME', 'orafce_strposb'
+LANGUAGE C
+STRICT IMMUTABLE;
+COMMENT ON FUNCTION oracle.strposb(float8, variadic "any") IS 'returns the byte position of a specified string in the input string';
+
+CREATE OR REPLACE FUNCTION oracle.strposb(pg_catalog.date, variadic "any") RETURNS integer
+AS 'MODULE_PATHNAME', 'orafce_strposb'
+LANGUAGE C
+STRICT IMMUTABLE;
+COMMENT ON FUNCTION oracle.strposb(pg_catalog.date, variadic "any") IS 'returns the byte position of a specified string in the input string';
+
+CREATE OR REPLACE FUNCTION oracle.strposb(timestamp, variadic "any") RETURNS integer
+AS 'MODULE_PATHNAME', 'orafce_strposb'
+LANGUAGE C
+STRICT IMMUTABLE;
+COMMENT ON FUNCTION oracle.strposb(timestamp, variadic "any") IS 'returns the byte position of a specified string in the input string';
+
+CREATE OR REPLACE FUNCTION oracle.strposb(timestamptz, variadic "any") RETURNS integer
+AS 'MODULE_PATHNAME', 'orafce_strposb'
+LANGUAGE C
+STRICT IMMUTABLE;
+COMMENT ON FUNCTION oracle.strposb(timestamp, variadic "any") IS 'returns the byte position of a specified string in the input string';
+
+CREATE OR REPLACE FUNCTION oracle.strposb(interval, variadic "any") RETURNS integer
+AS 'MODULE_PATHNAME', 'orafce_strposb'
+LANGUAGE C
+STRICT IMMUTABLE;
+COMMENT ON FUNCTION oracle.strposb(interval, variadic "any") IS 'returns the byte position of a specified string in the input string';
