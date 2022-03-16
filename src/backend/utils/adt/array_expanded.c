@@ -48,7 +48,7 @@ static void copy_byval_expanded_array(ExpandedArrayHeader *eah,
  */
 Datum
 expand_array(Datum arraydatum, MemoryContext parentcontext,
-			 ArrayMetaState *metacache)
+			 ArrayMetaState *metacache, int ctypemaxlen)
 {
 	ArrayType  *array;
 	ExpandedArrayHeader *eah;
@@ -174,6 +174,20 @@ expand_array(Datum arraydatum, MemoryContext parentcontext,
 	eah->fstartptr = ARR_DATA_PTR(array);
 	eah->fendptr = ((char *) array) + ARR_SIZE(array);
 
+	/* add collection type max len */
+	if (-1 == ctypemaxlen)
+	{
+		eah->ctypemaxlen = -1;
+		eah->isctype = false;
+		eah->hasdeleted = false;
+	}
+	else
+	{
+		eah->ctypemaxlen = ctypemaxlen;
+		eah->isctype = true;
+		eah->hasdeleted = false;
+	}
+
 	/* return a R/W pointer to the expanded array */
 	return EOHPGetRWDatum(&eah->hdr);
 }
@@ -224,6 +238,11 @@ copy_byval_expanded_array(ExpandedArrayHeader *eah,
 	eah->fvalue = NULL;
 	eah->fstartptr = NULL;
 	eah->fendptr = NULL;
+
+	/*add collection type max len */
+	eah->isctype = oldeah->isctype;
+	eah->ctypemaxlen = oldeah->ctypemaxlen;
+	eah->hasdeleted = oldeah->hasdeleted;
 }
 
 /*
@@ -361,7 +380,7 @@ DatumGetExpandedArray(Datum d)
 	}
 
 	/* Else expand the hard way */
-	d = expand_array(d, CurrentMemoryContext, NULL);
+	d = expand_array(d, CurrentMemoryContext, NULL, -1);
 	return (ExpandedArrayHeader *) DatumGetEOHP(d);
 }
 
@@ -389,7 +408,7 @@ DatumGetExpandedArrayX(Datum d, ArrayMetaState *metacache)
 	}
 
 	/* Else expand using caller's cache if any */
-	d = expand_array(d, CurrentMemoryContext, metacache);
+	d = expand_array(d, CurrentMemoryContext, metacache, -1);
 	return (ExpandedArrayHeader *) DatumGetEOHP(d);
 }
 

@@ -269,6 +269,8 @@ sql_fn_parser_setup(struct ParseState *pstate, SQLFunctionParseInfoPtr pinfo)
 	pstate->p_paramref_hook = sql_fn_param_ref;
 	/* no need to use p_coerce_param_hook */
 	pstate->p_ref_hook_state = (void *) pinfo;
+	pstate->p_find_ctype_hook = NULL;
+	pstate->p_find_ctype_by_oidmod_hook = NULL;
 }
 
 /*

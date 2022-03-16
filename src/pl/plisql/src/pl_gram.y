@@ -23,6 +23,7 @@
 #include "parser/scanner.h"
 #include "parser/scansup.h"
 #include "utils/builtins.h"
+#include "utils/ctype.h"
 #include "utils/syscache.h"
 
 #include "plisql.h"
@@ -110,6 +111,10 @@ static	PLiSQL_expr	*read_cursor_args(PLiSQL_var *cursor,
 										  int until);
 static	List			*read_raise_options(void);
 static	void			check_raise_parameters(PLiSQL_stmt_raise *stmt);
+static	PLiSQL_type		*parse_ctype_datatype(const char *string, int location);
+static	char			*compsite_ltrim(char * buf);
+static	char			*compsite_rtrim(char * buf);
+static	bool			is_ctype_datatype(StringInfoData * buf);
 
 %}
 
@@ -227,6 +232,8 @@ static	void			check_raise_parameters(PLiSQL_stmt_raise *stmt);
 %type <list>	record_attr_list
 %type <datum>	record_attr
 %type <expr>	decl_rec_defval
+%type <dtype>	varray_element nestedtab_element
+%type <ival>	varray_max
 
 /*
  * Basic non-keyword token types.  These are hard-wired into the core lexer.
@@ -260,6 +267,7 @@ static	void			check_raise_parameters(PLiSQL_stmt_raise *stmt);
 %token <keyword>	K_ALL
 %token <keyword>	K_AND
 %token <keyword>	K_ARRAY
+%token <keyword>	K_AS
 %token <keyword>	K_ASSERT
 %token <keyword>	K_BACKWARD
 %token <keyword>	K_BEGIN
@@ -320,6 +328,7 @@ static	void			check_raise_parameters(PLiSQL_stmt_raise *stmt);
 %token <keyword>	K_NOT
 %token <keyword>	K_NOTICE
 %token <keyword>	K_NULL
+%token <keyword>	K_OF
 %token <keyword>	K_OPEN
 %token <keyword>	K_OPTION
 %token <keyword>	K_OR
@@ -358,6 +367,7 @@ static	void			check_raise_parameters(PLiSQL_stmt_raise *stmt);
 %token <keyword>	K_USE_VARIABLE
 %token <keyword>	K_USING
 %token <keyword>	K_VARIABLE_CONFLICT
+%token <keyword>	K_VARRAY
 %token <keyword>	K_WARNING
 %token <keyword>	K_WHEN
 %token <keyword>	K_WHILE
@@ -740,6 +750,86 @@ decl_statement	: decl_varname decl_const decl_datatype decl_collate decl_notnull
 
 						plisql_adddatum((PLiSQL_datum *) new);
 						plisql_ns_additem(PLISQL_NSTYPE_REFCURSOR, new->dno, new->refname);
+					}
+				/* TYPE ... AS/IS VARRAY(n) OF ... */
+				| K_TYPE decl_varname as_is K_VARRAY '(' varray_max ')' K_OF varray_element decl_defval
+					{
+						char tempStr[128] = {0};
+						PLiSQL_type * varray_type= NULL;
+						PLiSQL_variable	*var;
+
+						sprintf(tempStr, "%s:%s[%d]", $2.name, $9->typname, $6);
+
+						plisql_ns_push(tempStr, PLISQL_LABEL_OTHER);
+
+						/* set varray sample arr */
+						varray_type = parse_ctype_datatype("varray", 0);
+
+						varray_type->ttype = PLISQL_TTYPE_CTYPE;
+						varray_type->ctypemaxlen = $6;
+						varray_type->elemOid = $9->typoid;
+						varray_type->elemmod = $9->atttypmod;
+						varray_type->typisarray = true;
+						varray_type->atttypmod = $9->atttypmod;
+						varray_type->typisnested = false;
+
+						var = plisql_build_variable($2.name, $2.lineno, varray_type, true);
+						((PLiSQL_var *)var)->datatype->atttypmod= var->dno;
+						((PLiSQL_var *)var)->isctype = true;
+						var->isconst = false;
+						var->notnull = false;
+						var->default_val = $10;
+					}
+				/* TYPE ... AS/IS TABLE OF ... */
+				| K_TYPE decl_varname as_is K_TABLE K_OF nestedtab_element decl_defval
+					{
+						char tempStr[128] = {0};
+						PLiSQL_type * nestedtab_type= NULL;
+						PLiSQL_variable	*var;
+
+						sprintf(tempStr, "%s:%s[%d]", $2.name, $6->typname, NESTED_TAB_MAX_ELEMENT_NUM);
+
+						plisql_ns_push(tempStr, PLISQL_LABEL_OTHER);
+
+						/* set nested table sample arr */
+						nestedtab_type = parse_ctype_datatype("nestedtab", 0);
+
+						nestedtab_type->ttype = PLISQL_TTYPE_CTYPE;
+						nestedtab_type->ctypemaxlen = NESTED_TAB_MAX_ELEMENT_NUM;
+						nestedtab_type->elemOid = $6->typoid;
+						nestedtab_type->elemmod = $6->atttypmod;
+						nestedtab_type->typisarray = true;
+						nestedtab_type->atttypmod = $6->atttypmod;
+						nestedtab_type->typisnested = true;
+
+						var = plisql_build_variable($2.name, $2.lineno, nestedtab_type, true);
+						((PLiSQL_var *)var)->datatype->atttypmod= var->dno;
+						((PLiSQL_var *)var)->isctype = true;
+						var->isconst = false;
+						var->notnull = false;
+						var->default_val = $7;
+					}
+				;
+
+as_is	: 		K_AS
+				| K_IS
+				;
+
+varray_max	 : ICONST
+					{
+						$$ = $1;
+					}
+					;
+
+varray_element	: decl_datatype
+					{
+						$$ = $1;
+					}
+				;
+
+nestedtab_element	: decl_datatype
+					{
+						$$ = $1;
 					}
 				;
 
@@ -2775,6 +2865,7 @@ unreserved_keyword	:
 				| K_ALIAS
 				| K_AND
 				| K_ARRAY
+				| K_AS
 				| K_ASSERT
 				| K_BACKWARD
 				| K_CALL
@@ -3262,7 +3353,19 @@ read_datatype(int tok)
 	if (type_name[0] == '\0')
 		yyerror("missing data type declaration");
 
-	result = parse_datatype(type_name, startlocation);
+	ds.data = compsite_ltrim(ds.data);
+	ds.data = compsite_rtrim(ds.data);
+	if (is_ctype_datatype(&ds))
+	{
+		PLiSQL_var *var;
+
+		var = (PLiSQL_var *)plisql_find_datums_by_name(type_name);
+		result = var->datatype;
+	}
+	else
+	{
+		result = parse_datatype(type_name, startlocation);
+	}
 
 	pfree(ds.data);
 
@@ -3760,6 +3863,7 @@ check_assignable(PLiSQL_datum *datum, int location)
 	switch (datum->dtype)
 	{
 		case PLISQL_DTYPE_VAR:
+		case PLISQL_DTYPE_CTYPE:
 		case PLISQL_DTYPE_PROMISE:
 		case PLISQL_DTYPE_REC:
 			if (((PLiSQL_variable *) datum)->isconst)
@@ -4069,6 +4173,108 @@ parse_datatype(const char *string, int location)
 	return plisql_build_datatype(type_id, typmod,
 								  plisql_curr_compile->fn_input_collation,
 								  typeName);
+}
+
+static PLiSQL_type *
+parse_ctype_datatype(const char *string, int location)
+{
+	TypeName   *typeName;
+	Oid			type_id;
+	int32		typmod;
+	sql_error_callback_arg cbarg;
+	ErrorContextCallback  syntax_errcontext;
+
+	cbarg.location = location;
+
+	syntax_errcontext.callback = plisql_sql_error_callback;
+	syntax_errcontext.arg = &cbarg;
+	syntax_errcontext.previous = error_context_stack;
+	error_context_stack = &syntax_errcontext;
+
+	/* Let the main parser try to parse it under standard SQL rules */
+	typeName = typeStringToTypeName(string);
+	typeName->abst_type = true;
+	typenameTypeIdAndMod(NULL, typeName, &type_id, &typmod);
+
+	/* Restore former ereport callback */
+	error_context_stack = syntax_errcontext.previous;
+
+	/* Okay, build a PLiSQL_type data structure for it */
+	return plisql_build_datatype(type_id, typmod,
+								 plisql_curr_compile->fn_input_collation,
+								 typeName);
+}
+
+/*
+ * compsite_ltrim
+ * Delete left space
+ */
+static char *
+compsite_ltrim(char * buf)
+{
+	int len =0;
+	char *p =buf;
+
+	if(buf == NULL || *buf == '\0')
+		return buf;
+	while(*p == '\0' && isspace(*p))
+	{
+		++p;
+		++len;
+	}
+
+	return p;
+}
+
+/*
+ * compsite_ltrim
+ * Delete right space
+ */
+static char *
+compsite_rtrim(char * buf)
+{
+	int len =0;
+	char *p = NULL;
+
+	len = strlen(buf);
+	p = buf + len -1;
+
+	if(buf == NULL || *buf == '\0')
+		return buf;
+
+	while( p >= buf && isspace(*p))
+	{
+		*p = '\0';
+		--p;
+	}
+
+	return buf;
+}
+
+static bool
+is_ctype_datatype(StringInfoData * buf)
+{
+	/* We have a label, so verify it exists */
+	PLiSQL_nsitem *label = plisql_ns_top();
+	char *ptr = NULL;
+	char typeptr[128] = {0};
+
+	while (NULL != label)
+	{
+		ptr = strstr(label->name, ":");
+
+		if (ptr) 
+		{
+			MemSet(typeptr, '\0', 128);
+
+			strncpy(typeptr, label->name, ptr-label->name);
+			if (!strcmp(typeptr, buf->data))
+				return true;
+		}
+		label = label->prev;
+	}
+
+	return false;
 }
 
 /*

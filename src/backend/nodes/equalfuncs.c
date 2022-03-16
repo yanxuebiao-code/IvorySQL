@@ -530,6 +530,7 @@ _equalCoerceViaIO(const CoerceViaIO *a, const CoerceViaIO *b)
 {
 	COMPARE_NODE_FIELD(arg);
 	COMPARE_SCALAR_FIELD(resulttype);
+	COMPARE_LOCATION_FIELD(resultmod);
 	COMPARE_SCALAR_FIELD(resultcollid);
 	COMPARE_COERCIONFORM_FIELD(coerceformat);
 	COMPARE_LOCATION_FIELD(location);

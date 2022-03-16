@@ -37,6 +37,7 @@
 #include "parser/parse_coerce.h"
 #include "parser/parse_collate.h"
 #include "parser/parse_cte.h"
+#include "parser/parse_ctype.h"
 #include "parser/parse_expr.h"
 #include "parser/parse_func.h"
 #include "parser/parse_oper.h"
@@ -3115,25 +3116,31 @@ transformCallStmt(ParseState *pstate, CallStmt *stmt)
 	List	   *outargs = NIL;
 	Query	   *result;
 
-	/*
-	 * First, do standard parse analysis on the procedure call and its
-	 * arguments, allowing us to identify the called procedure.
-	 */
-	targs = NIL;
-	foreach(lc, stmt->funccall->args)
-	{
-		targs = lappend(targs, transformExpr(pstate,
-											 (Node *) lfirst(lc),
-											 EXPR_KIND_CALL_ARGUMENT));
-	}
+	/* As collection type procedure to parse */
+	node = transformCallCtypestmt(pstate, stmt);
 
-	node = ParseFuncOrColumn(pstate,
-							 stmt->funccall->funcname,
-							 targs,
-							 pstate->p_last_srf,
-							 stmt->funccall,
-							 true,
-							 stmt->funccall->location);
+	if (!node)
+	{
+		/*
+		 * First, do standard parse analysis on the procedure call and its
+		 * arguments, allowing us to identify the called procedure.
+		 */
+		targs = NIL;
+		foreach(lc, stmt->funccall->args)
+		{
+			targs = lappend(targs, transformExpr(pstate,
+												 (Node *) lfirst(lc),
+												 EXPR_KIND_CALL_ARGUMENT));
+		}
+
+		node = ParseFuncOrColumn(pstate,
+								 stmt->funccall->funcname,
+								 targs,
+								 pstate->p_last_srf,
+								 stmt->funccall,
+								 true,
+								 stmt->funccall->location);
+	}
 
 	assign_expr_collations(pstate, node);
 

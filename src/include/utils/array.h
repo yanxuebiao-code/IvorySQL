@@ -124,6 +124,11 @@ typedef struct ExpandedArrayHeader
 	bool		typbyval;
 	char		typalign;
 
+	/* add array max len for collection type */
+	bool		isctype;
+	int 		ctypemaxlen;
+	bool		hasdeleted;
+
 	/*
 	 * If we have a Datum-array representation of the array, it's kept here;
 	 * else dvalues/dnulls are NULL.  The dvalues and dnulls arrays are always
@@ -454,7 +459,7 @@ extern int32 *ArrayGetIntegerTypmods(ArrayType *arr, int *n);
  * prototypes for functions defined in array_expanded.c
  */
 extern Datum expand_array(Datum arraydatum, MemoryContext parentcontext,
-						  ArrayMetaState *metacache);
+						  ArrayMetaState *metacache, int ctypemaxlen);
 extern ExpandedArrayHeader *DatumGetExpandedArray(Datum d);
 extern ExpandedArrayHeader *DatumGetExpandedArrayX(Datum d,
 												   ArrayMetaState *metacache);

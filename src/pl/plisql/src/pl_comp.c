@@ -130,6 +130,10 @@ static void delete_function(PLiSQL_function *func);
 
 static List *get_package_funcs_list(Oid pkgOid);
 static void delete_package_state(PLiSQL_package *pkg);
+static Oid plisql_find_ctype_ref(ParseState *pstate, char *varname, char **typname, int32 *ctypemaxlen,
+												bool *isctype);
+static Oid plisql_find_ctype_by_oidmod_ref(ParseState *pstate, char *varname, Oid *oid, int32 *mod,
+														int32 *ctypemaxlen, int32 findflag);
 
 /* ----------
  * plisql_compile		Make an execution tree for a PL/iSQL function.
@@ -1179,6 +1183,92 @@ plisql_parser_setup(struct ParseState *pstate, PLiSQL_expr *expr)
 	pstate->p_paramref_hook = plisql_param_ref;
 	/* no need to use p_coerce_param_hook */
 	pstate->p_ref_hook_state = (void *) expr;
+	pstate->p_find_ctype_hook = plisql_find_ctype_ref;
+	pstate->p_find_ctype_by_oidmod_hook = plisql_find_ctype_by_oidmod_ref;
+}
+
+/*
+ * plisql_find_ctype_ref
+ * parser callback before parsing a ColumnRef
+ * return collection type element Oid
+ */
+static Oid
+plisql_find_ctype_ref(ParseState *pstate, char *varname, char **typname, int32 *ctypemaxlen,
+								bool *isctype)
+{
+	PLiSQL_expr *expr = (PLiSQL_expr *) pstate->p_ref_hook_state;
+	PLiSQL_execstate *estate = expr->func->cur_estate;
+	int subscript = 0;
+
+	if (!pstate || !varname)
+		return InvalidOid;
+
+	for(subscript = 0; subscript < estate->ndatums; subscript++)
+	{
+		if (PLISQL_DTYPE_CTYPE == estate->datums[subscript]->dtype)
+		{
+			PLiSQL_var *var = (PLiSQL_var *)estate->datums[subscript];
+			if (!strcmp(var->refname, varname))
+			{
+				if(typname)
+					*typname = var->datatype->typname;
+
+				if(ctypemaxlen)
+					*ctypemaxlen = var->datatype->ctypemaxlen;
+
+				if (isctype)
+					*isctype = var->isctype;
+
+				return var->datatype->elemOid;
+			}
+		}
+	}
+
+	return InvalidOid;
+}
+
+/*
+ * plisql_find_ctype_by_oidmod_ref
+ * parser callback before parsing a ColumnRef
+ * return collection type element Oid
+ */
+static Oid 
+plisql_find_ctype_by_oidmod_ref(ParseState *pstate, char *varname, Oid * oid, int32 * mod,
+											  int32 *ctypemaxlen, int32 findflag)
+{
+	PLiSQL_expr *expr = (PLiSQL_expr *) pstate->p_ref_hook_state;
+	PLiSQL_execstate *estate = expr->func->cur_estate;
+	int subscript = 0;
+
+	if (!pstate && !oid && !mod)
+		return InvalidOid;
+
+	if (PLISQL_DTYPE_CTYPE == estate->datums[*mod]->dtype)
+	{
+		PLiSQL_var *var = ((PLiSQL_var *)estate->datums[*mod]);
+		*mod = var->datatype->atttypmod;
+	}
+
+	for(subscript = 0; subscript < estate->ndatums; subscript++)
+	{
+		if (PLISQL_DTYPE_CTYPE == estate->datums[subscript]->dtype)
+		{
+			PLiSQL_var *var = (PLiSQL_var *)estate->datums[subscript];
+
+			if (*oid == var->datatype->typoid && *mod == var->dno)
+			{
+				*oid = var->datatype->elemOid;
+				*mod = var->datatype->elemmod;
+
+				if (ctypemaxlen)
+					*ctypemaxlen = var->datatype->ctypemaxlen;
+
+				return *oid;
+			}
+		}
+	}
+
+	return InvalidOid;
 }
 
 /*
@@ -2241,6 +2331,39 @@ plisql_build_variable(const char *refname, int lineno, PLiSQL_type *dtype,
 				result = (PLiSQL_variable *) var;
 				break;
 			}
+		case PLISQL_TTYPE_CTYPE:
+			{
+				PLiSQL_var *var;
+
+				var = palloc0(sizeof(PLiSQL_var));
+				var->dtype = PLISQL_DTYPE_CTYPE;
+				var->refname = pstrdup(refname);
+				var->lineno = lineno;
+				var->datatype = dtype;
+				/* other fields are left as 0, might be changed by caller */
+				var->default_val = NULL;
+
+				/* preset to NULL */
+				var->value = 0;
+				var->isnull = true;
+				var->freeval = false;
+
+				plisql_adddatum((PLiSQL_datum *) var);
+				if (add2namespace)
+					plisql_ns_additem(PLISQL_NSTYPE_VAR,
+									   var->dno,
+									   refname);
+
+				/* add package oid to var struct */
+				if (curr_pkg && curr_pkg->isinitcomp)
+				{
+					var->pkgoid = curr_pkg->pkgoid;
+					var->pkgdno = var->dno;
+				}
+
+				result = (PLiSQL_variable *) var;
+				break;
+			}
 		case PLISQL_TTYPE_REC:
 			{
 				/* Composite type -- build a record variable */
@@ -2731,6 +2854,7 @@ plisql_finish_datums(PLiSQL_function *function)
 		switch (function->datums[i]->dtype)
 		{
 			case PLISQL_DTYPE_VAR:
+			case PLISQL_DTYPE_CTYPE:
 			case PLISQL_DTYPE_PROMISE:
 				copiable_size += MAXALIGN(sizeof(PLiSQL_var));
 				break;
@@ -2774,6 +2898,7 @@ plisql_add_initdatums(int **varnos)
 		switch (plisql_Datums[i]->dtype)
 		{
 			case PLISQL_DTYPE_VAR:
+			case PLISQL_DTYPE_CTYPE:
 			case PLISQL_DTYPE_REC:
 				n++;
 				break;
@@ -2795,6 +2920,7 @@ plisql_add_initdatums(int **varnos)
 				switch (plisql_Datums[i]->dtype)
 				{
 					case PLISQL_DTYPE_VAR:
+					case PLISQL_DTYPE_CTYPE:
 					case PLISQL_DTYPE_REC:
 						(*varnos)[n++] = plisql_Datums[i]->dno;
 
@@ -3427,4 +3553,44 @@ lookup_package_var(PLiSQL_package *pkg, Oid vartype, char *varname)
 	}
 
 	return NULL;
+}
+
+/*
+ * plisql_find_datums_by_name
+ * find datum info from arr.
+ */
+PLiSQL_datum *
+plisql_find_datums_by_name(char *datum_name)
+{
+	int			i;
+	int			ndatums = plisql_nDatums;
+	PLiSQL_datum *pdatums = NULL;
+
+	for (i = 0; i < ndatums; i++)
+	{
+		pdatums = plisql_Datums[i];
+
+		if (PLISQL_DTYPE_CTYPE == pdatums->dtype)
+		{
+			if (!strcmp(datum_name, ((PLiSQL_var*)pdatums)->refname))
+				return pdatums;
+		}
+	}
+
+	return NULL;
+}
+
+/*
+ * plisql_find_datums_by_indx
+ * find datum info from arr.
+ */
+PLiSQL_datum *
+plisql_find_datums_by_indx(int indx)
+{
+	int ndatums = plisql_nDatums;
+
+	if (indx > ndatums || indx < 0)
+		return NULL;
+
+	return plisql_Datums[indx];
 }

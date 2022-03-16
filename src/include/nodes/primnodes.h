@@ -886,6 +886,7 @@ typedef struct CoerceViaIO
 	Expr		xpr;
 	Expr	   *arg;			/* input expression */
 	Oid			resulttype;		/* output type of coercion */
+	int			resultmod;		/* collection type mod */
 	/* output typmod is not stored, but is presumed -1 */
 	Oid			resultcollid;	/* OID of collation, or InvalidOid if none */
 	CoercionForm coerceformat;	/* how to display this node */

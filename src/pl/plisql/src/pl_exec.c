@@ -46,6 +46,7 @@
 #include "tcop/utility.h"
 #include "utils/array.h"
 #include "utils/builtins.h"
+#include "utils/ctype.h"
 #include "utils/datum.h"
 #include "utils/fmgroids.h"
 #include "utils/lsyscache.h"
@@ -171,6 +172,14 @@ typedef struct					/* cast_hash table entry */
 	bool		cast_in_use;	/* true while we're executing eval tree */
 	LocalTransactionId cast_lxid;
 } plisql_CastHashEntry;
+
+typedef struct
+{
+	bool	isNull;
+	Oid		valtype;
+	int32	valtypmod;
+	bool	deleted;
+} ctype_cast;
 
 static MemoryContext shared_cast_context = NULL;
 static HTAB *shared_cast_hash = NULL;
@@ -456,6 +465,19 @@ static PLiSQL_datum *get_datum(PLiSQL_execstate *estate, int dno);
 static MemoryContext switchPkgContext(Oid oid);
 static MemoryContext getRelevantContext(Oid oid, MemoryContext orig);
 static PLiSQL_datum *lookup_package_datum(PLiSQL_execstate *estate, Oid pkgoid, int dno);
+static void plisql_get_srcexpr_oid_and_mod(PLiSQL_execstate *estate, PLiSQL_expr *expr, Oid *ctypeOid,
+														int *ctypemod);
+static Datum get_set_element(PLiSQL_execstate *estate, Datum arraydatum, int nSubscripts, int *indx, Datum dataValue,
+								  bool isNull, int arraytyplen, int elmlen, bool elmbyval, char elmalign,
+								  int *ctypemaxlenarray, bool *nestedtabkind, List *fields, ctype_cast *cast);
+static bool find_ctype_cache_by_oidmod(PLiSQL_execstate *estate, Oid *elemtype, int32 *elemmod,
+												  int32 *ctypemaxlen, bool *nestedtabkind, char *typename);
+static bool find_ctype_cache_by_funcname(PLiSQL_execstate *estate,	Oid *elemtype, int32 *elemmod,
+													 int32 *ctypemaxlen, char *typename);
+static bool check_assignment_type(PLiSQL_execstate *estate, PLiSQL_datum *target, Oid valtype,
+										  int32 valtypmod, int32 subnums);
+static Datum HandleCtypeColumn(PLiSQL_execstate *estate, Datum arraydatum, Datum value,
+									   ctype_cast *cast, List *fields);
 
 /* ----------
  * plisql_exec_function	Called by the call handler for
@@ -528,6 +550,7 @@ plisql_exec_function(PLiSQL_function *func, FunctionCallInfo fcinfo,
 		switch (get_datum(&estate, n)->dtype)
 		{
 			case PLISQL_DTYPE_VAR:
+			case PLISQL_DTYPE_CTYPE:
 				{
 					PLiSQL_var *var = (PLiSQL_var *) get_datum(&estate, n);
 
@@ -572,7 +595,8 @@ plisql_exec_function(PLiSQL_function *func, FunctionCallInfo fcinfo,
 							assign_simple_var(&estate, var,
 											  expand_array(var->value,
 														   estate.datum_context,
-														   NULL),
+														   NULL,
+														   -1),
 											  false,
 											  true);
 						}
@@ -1367,6 +1391,7 @@ copy_plisql_datums(PLiSQL_execstate *estate,
 		switch (indatum->dtype)
 		{
 			case PLISQL_DTYPE_VAR:
+			case PLISQL_DTYPE_CTYPE:
 			case PLISQL_DTYPE_PROMISE:
 				outdatum = (PLiSQL_datum *) ws_next;
 				memcpy(outdatum, indatum, sizeof(PLiSQL_var));
@@ -1713,6 +1738,7 @@ exec_stmt_block(PLiSQL_execstate *estate, PLiSQL_stmt_block *block)
 		switch (datum->dtype)
 		{
 			case PLISQL_DTYPE_VAR:
+			case PLISQL_DTYPE_CTYPE:
 				{
 					PLiSQL_var *var = (PLiSQL_var *) datum;
 
@@ -3240,6 +3266,7 @@ exec_stmt_return(PLiSQL_execstate *estate, PLiSQL_stmt_return *stmt)
 				/* FALL THRU */
 
 			case PLISQL_DTYPE_VAR:
+			case PLISQL_DTYPE_CTYPE:
 				{
 					PLiSQL_var *var = (PLiSQL_var *) retvar;
 
@@ -3386,6 +3413,7 @@ exec_stmt_return_next(PLiSQL_execstate *estate,
 				/* FALL THRU */
 
 			case PLISQL_DTYPE_VAR:
+			case PLISQL_DTYPE_CTYPE:
 				{
 					PLiSQL_var *var = (PLiSQL_var *) retvar;
 					Datum		retval = var->value;
@@ -5176,7 +5204,8 @@ exec_assign_value(PLiSQL_execstate *estate,
 												estate->datum_context);
 						newvalue = expand_array(newvalue,
 												mc,
-												NULL);
+												NULL,
+												-1);
 
 					}
 					else
@@ -5207,6 +5236,90 @@ exec_assign_value(PLiSQL_execstate *estate,
 									  (!var->datatype->typbyval && !isNull));
 				else
 					var->promise = PLISQL_PROMISE_NONE;
+				break;
+			}
+
+		case PLISQL_DTYPE_CTYPE:
+			{
+				/*
+				 * Target is a variable
+				 */
+				PLiSQL_var *var = (PLiSQL_var *) target;
+				Datum		newvalue;
+
+				if (!check_assignment_type(estate, target, valtype, valtypmod, 0))
+					ereport(ERROR,
+							(errcode(ERRCODE_NULL_VALUE_NOT_ALLOWED),
+							 errmsg("expression is of wrong type")));
+
+				newvalue = exec_cast_value(estate,
+										   value,
+										   &isNull,
+										   valtype,
+										   valtypmod,
+										   var->datatype->typoid,
+										   var->datatype->atttypmod);
+
+				if (isNull && var->notnull)
+					ereport(ERROR,
+							(errcode(ERRCODE_NULL_VALUE_NOT_ALLOWED),
+							 errmsg("null value cannot be assigned to variable \"%s\" declared NOT NULL",
+									var->refname)));
+				if (!isNull)
+					newvalue = datumCopy(newvalue, false, -1);
+
+				/*
+				 * If type is by-reference, copy the new value (which is
+				 * probably in the eval_mcontext) into the procedure's main
+				 * memory context.  But if it's a read/write reference to an
+				 * expanded object, no physical copy needs to happen; at most
+				 * we need to reparent the object's memory context.
+				 *
+				 * If it's an array, we force the value to be stored in R/W
+				 * expanded form.  This wins if the function later does, say,
+				 * a lot of array subscripting operations on the variable, and
+				 * otherwise might lose.  We might need to use a different
+				 * heuristic, but it's too soon to tell.  Also, are there
+				 * cases where it'd be useful to force non-array values into
+				 * expanded form?
+				 */
+				if (!var->datatype->typbyval && !isNull)
+				{
+					if (var->datatype->typisarray &&
+						!VARATT_IS_EXTERNAL_EXPANDED_RW(DatumGetPointer(newvalue)))
+					{
+						/* array and not already R/W, so apply expand_array*/
+						newvalue = expand_array(newvalue,
+												estate->datum_context,
+												NULL,
+												var->datatype->ctypemaxlen) ;
+					}
+					else
+					{
+						/* else transfer value if R/W, else just datumCopy */
+						newvalue = datumTransfer(newvalue,
+												 false,
+												 var->datatype->typlen);
+					}
+				}
+				/*
+				 * Now free the old value, if any, and assign the new one. But
+				 * skip the assignment if old and new values are the same.
+				 * Note that for expanded objects, this test is necessary and
+				 * cannot reliably be made any earlier; we have to be looking
+				 * at the object's standard R/W pointer to be sure pointer
+				 * equality is meaningful.
+				 *
+				 * Also, if it's a promise variable, we should disarm the
+				 * promise in any case --- otherwise, assigning null to an
+				 * armed promise variable would fail to disarm the promise.
+				 */
+				if (var->value != newvalue || var->isnull || isNull)
+					assign_simple_var(estate, var, newvalue, isNull,
+									  (!var->datatype->typbyval && !isNull));
+				else
+					var->promise = PLISQL_PROMISE_NONE;
+
 				break;
 			}
 
@@ -5381,6 +5494,17 @@ exec_eval_datum(PLiSQL_execstate *estate,
 				break;
 			}
 
+		case PLISQL_DTYPE_CTYPE:
+			{
+				PLiSQL_var *var = (PLiSQL_var *) datum;
+
+				*typeid = var->datatype->typoid;
+				*typetypmod = var->dno;
+				*value = var->value;
+				*isnull = var->isnull;
+				break;
+			}
+
 		case PLISQL_DTYPE_ROW:
 			{
 				PLiSQL_row *row = (PLiSQL_row *) datum;
@@ -5512,6 +5636,7 @@ plisql_exec_get_datum_type(PLiSQL_execstate *estate,
 	switch (datum->dtype)
 	{
 		case PLISQL_DTYPE_VAR:
+		case PLISQL_DTYPE_CTYPE:
 		case PLISQL_DTYPE_PROMISE:
 			{
 				PLiSQL_var *var = (PLiSQL_var *) datum;
@@ -5597,6 +5722,16 @@ plisql_exec_get_datum_type_info(PLiSQL_execstate *estate,
 	{
 		case PLISQL_DTYPE_VAR:
 		case PLISQL_DTYPE_PROMISE:
+			{
+				PLiSQL_var *var = (PLiSQL_var *) datum;
+
+				*typeId = var->datatype->typoid;
+				*typMod = var->datatype->atttypmod;
+				*collation = var->datatype->collation;
+				break;
+			}
+
+		case PLISQL_DTYPE_CTYPE:
 			{
 				PLiSQL_var *var = (PLiSQL_var *) datum;
 
@@ -6202,6 +6337,9 @@ exec_eval_simple_expr(PLiSQL_execstate *estate,
 	*rettype = expr->expr_simple_type;
 	*rettypmod = expr->expr_simple_typmod;
 
+	/* get Multidimensional Collections use Multilayer index 's element type */
+	plisql_get_srcexpr_oid_and_mod(estate, expr, rettype, rettypmod);
+
 	/*
 	 * Set up ParamListInfo to pass to executor.  For safety, save and restore
 	 * estate->paramLI->parserSetupArg around our use of the param list.
@@ -6401,6 +6539,7 @@ plisql_param_fetch(ParamListInfo params,
 		switch (datum->dtype)
 		{
 			case PLISQL_DTYPE_VAR:
+			case PLISQL_DTYPE_CTYPE:
 			case PLISQL_DTYPE_PROMISE:
 				/* always safe */
 				break;
@@ -6470,7 +6609,7 @@ plisql_param_fetch(ParamListInfo params,
 	 * (There's little point in trying to optimize read/write parameters,
 	 * given the cases in which this function is used.)
 	 */
-	if (datum->dtype == PLISQL_DTYPE_VAR)
+	if (datum->dtype == PLISQL_DTYPE_VAR || datum->dtype == PLISQL_DTYPE_CTYPE)
 		prm->value = MakeExpandedObjectReadOnly(prm->value,
 												prm->isnull,
 												((PLiSQL_var *) datum)->datatype->typlen);
@@ -7280,6 +7419,9 @@ exec_move_row_from_fields(PLiSQL_execstate *estate,
 				valtype = TupleDescAttr(tupdesc, anum)->atttypid;
 				valtypmod = TupleDescAttr(tupdesc, anum)->atttypmod;
 				anum++;
+
+				if (valtype == TypenameGetTypid("varray") || valtype == TypenameGetTypid("nestedtab"))
+					valtypmod = row->varnos[fnum];
 			}
 			else
 			{
@@ -7935,6 +8077,7 @@ get_cast_hashentry(PLiSQL_execstate *estate,
 
 			iocoerce->arg = (Expr *) placeholder;
 			iocoerce->resulttype = dsttype;
+			iocoerce->resultmod = dsttypmod;
 			iocoerce->resultcollid = InvalidOid;
 			iocoerce->coerceformat = COERCE_IMPLICIT_CAST;
 			iocoerce->location = -1;
@@ -8526,7 +8669,8 @@ assign_simple_var(PLiSQL_execstate *estate, PLiSQL_var *var,
 				  Datum newvalue, bool isnull, bool freeable)
 {
 	Assert(var->dtype == PLISQL_DTYPE_VAR ||
-		   var->dtype == PLISQL_DTYPE_PROMISE);
+		   var->dtype == PLISQL_DTYPE_PROMISE ||
+		   var->dtype == PLISQL_DTYPE_CTYPE);
 
 	/*
 	 * In non-atomic contexts, we do not want to store TOAST pointers in
@@ -8915,6 +9059,7 @@ get_datum(PLiSQL_execstate *estate, int dno)
 	switch (datum->dtype)
 	{
 		case PLISQL_DTYPE_VAR:
+		case PLISQL_DTYPE_CTYPE:
 		case PLISQL_DTYPE_REC:
 			{
 				PLiSQL_var *var;
@@ -9032,4 +9177,518 @@ getRelevantContext(Oid oid, MemoryContext orig)
 		return pkg->pkgctx;
 
 	return orig;
+}
+
+/*
+ * plisql_get_srcexpr_oid_and_mod
+ * find datum info from arr.
+ */
+static void
+plisql_get_srcexpr_oid_and_mod(PLiSQL_execstate *estate, PLiSQL_expr *expr, Oid *ctypeOid,
+											int *ctypemod)
+{
+	Oid 		element_type = 0;
+	int32		typmod = 0;
+	int32		ctypemaxlen = 0;
+	bool		isfind = false;
+
+	if (*ctypeOid == TypenameGetTypid("varray") || *ctypeOid == TypenameGetTypid("nestedtab"))
+	{
+		if(PLISQL_DTYPE_CTYPE == estate->datums[*ctypemod]->dtype)
+		{
+			PLiSQL_var *var = ((PLiSQL_var *)estate->datums[*ctypemod]);
+			*ctypemod = var->datatype->atttypmod;
+		}
+	}
+
+	if (T_SubscriptingRef == nodeTag(expr->expr_simple_expr))
+	{
+		SubscriptingRef *subscRef = (SubscriptingRef *)expr->expr_simple_expr;
+
+		if((TypenameGetTypid("varray") == subscRef->refcontainertype || TypenameGetTypid("nestedtab") == subscRef->refcontainertype)
+			&& (TypenameGetTypid("varray") == subscRef->refelemtype || TypenameGetTypid("nestedtab") == subscRef->refelemtype))
+		{
+			int32 ndim = list_length(subscRef->refupperindexpr);
+
+			element_type = subscRef->refelemtype;
+			typmod = subscRef->reftypmod;
+
+			if (1 <= ndim )
+			{
+				while(ndim--)
+				{
+					find_ctype_cache_by_oidmod(estate, &element_type, &typmod, &ctypemaxlen, NULL, NULL);
+				}
+
+				*ctypeOid = element_type;
+				*ctypemod = typmod;
+			}
+		}
+	}
+	else if (T_FuncExpr == nodeTag(expr->expr_simple_expr))
+	{
+		FuncExpr* funcexprtemp = (FuncExpr *)expr->expr_simple_expr;
+
+		if (TypenameGetTypid("varray") == funcexprtemp->funcresulttype || TypenameGetTypid("nestedtab") == funcexprtemp->funcresulttype)
+		{
+			char funcname[1024] = {0};
+			sscanf(expr->query, "SELECT%*[^a-z]%[^(.]%*s", funcname);
+
+			/* find collection type info by collection type name, set func's oid and mod */
+			isfind = find_ctype_cache_by_funcname(estate, &element_type, &typmod, &ctypemaxlen, funcname);
+			if(isfind)
+			{
+				*ctypeOid = element_type;
+				*ctypemod = typmod;
+			}
+			else
+			{
+				/* get dimension */
+				int namestrlen = 0;
+				int ndim = 0;
+				int i;
+				Oid		 element_type;
+				int32		 typmod;
+
+				namestrlen = strlen(funcname);
+				for(i = 0; i < namestrlen; i++)
+				{
+					if(funcname[i] == '(')
+						ndim++;
+				}
+				sscanf(funcname, "%[^(]%*s", funcname);
+
+				/* find collection type info by collection type name, set func's(delete extend etc) oid and mod */
+				isfind = find_ctype_cache_by_funcname(estate, &element_type, &typmod, &ctypemaxlen, funcname);
+
+				if(isfind)
+				{
+					if(1 <= ndim )
+					{
+						while(ndim--)
+						{
+							int32 ctypemaxlen;
+
+							find_ctype_cache_by_oidmod(estate, &element_type, &typmod, &ctypemaxlen, NULL, NULL);
+						}
+					}
+
+					*ctypeOid = element_type;
+					*ctypemod = typmod;
+				}
+			}
+		}
+	}
+}
+
+static Datum
+HandleCtypeColumn(PLiSQL_execstate *estate, Datum arraydatum, Datum value, ctype_cast *cast,
+						  List *fields)
+{
+	Datum	   new_value;
+
+	if (!VARATT_IS_EXTERNAL_EXPANDED(DatumGetPointer(arraydatum)))
+	{
+		Oid	   tupType;
+		int32	   tupTypmod;
+		HeapTupleHeader	   tuple;
+		TupleDesc	   tupDesc;
+		int16	   fieldnum = 0;
+		HeapTupleData	   tmptup;
+		bool	   *isNull;
+		Datum	   *dvalues;
+		int	   tempnum;
+		HeapTuple	rettuple;
+		Oid		reqtype;
+		int32	reqtypmod;
+
+		/* Get the composite datum and extract its type fields */
+		tuple = DatumGetHeapTupleHeader(arraydatum);
+
+		tupType = HeapTupleHeaderGetTypeId(tuple);
+		tupTypmod = HeapTupleHeaderGetTypMod(tuple);
+
+		tupDesc = lookup_rowtype_tupdesc(tupType, tupTypmod);
+
+		for (tempnum = 0; tempnum < tupDesc->natts; tempnum++)
+		{
+			FormData_pg_attribute pgattrs;
+			pgattrs = tupDesc->attrs[tempnum];
+
+			/* Skip have dropped column */
+			if (pgattrs.attisdropped)
+				continue;
+
+			if (!strcmp(NameStr(pgattrs.attname), strVal(linitial(fields))))
+			{
+				reqtype = pgattrs.atttypid;
+				reqtypmod = pgattrs.atttypmod;
+				fieldnum = tempnum + 1;
+				break;
+			}
+		}
+
+		if (fieldnum == 0)
+			ereport(ERROR,
+					(errcode(ERRCODE_UNDEFINED_COLUMN),
+					 errmsg("record \"%s\" has no field \"%s\"",
+							get_typname(tupType), strVal(linitial(fields)))));
+
+		/* heap_getattr needs a HeapTuple not a bare HeapTupleHeader */
+		tmptup.t_len = HeapTupleHeaderGetDatumLength(tuple);
+		tmptup.t_data = tuple;
+
+		dvalues = (Datum *)palloc(tupDesc->natts * sizeof(Datum));
+		isNull = (bool *)palloc(tupDesc->natts * sizeof(bool));
+		MemSet(isNull, false, tupDesc->natts);
+
+		for (tempnum = 0; tempnum < tupDesc->natts; tempnum++)
+		{
+			dvalues[tempnum] = heap_getattr(&tmptup,
+											tempnum + 1,
+											tupDesc,
+											&isNull[tempnum]);
+		}
+
+		/* Ctype has been deleted, set all attribute to null */
+		if (cast->deleted)
+			MemSet(isNull, true, tupDesc->natts);
+
+		fields = list_delete_first(fields);
+
+		/* Handle last node */
+		if (!fields)
+		{
+			/* Coerce source value to match element type. */
+			value = exec_cast_value(estate,
+									value,
+									&cast->isNull,
+									cast->valtype,
+									cast->valtypmod,
+									reqtype,
+									reqtypmod);
+
+			dvalues[fieldnum - 1] = value;
+
+			/* If attribute is null, after assign value, here set flg to false */
+			if (isNull[fieldnum- 1 ])
+				isNull[fieldnum- 1 ] = false;
+
+			rettuple = heap_form_tuple(tupDesc, dvalues, isNull);
+
+			ReleaseTupleDesc(tupDesc);
+
+			return HeapTupleGetDatum(rettuple);
+		}
+		else
+		{
+			/* Next type must is composite type */
+			if (get_typtype(reqtype) != TYPTYPE_COMPOSITE)
+				ereport(ERROR,
+						(errcode(ERRCODE_WRONG_OBJECT_TYPE),
+						 errmsg("attribute \"%s\" is not a composite type", strVal(linitial(fields)))));
+				
+		}
+		new_value = HandleCtypeColumn(estate, dvalues[fieldnum - 1], value, cast, fields);
+
+		dvalues[fieldnum - 1] = new_value;
+
+		/* If attribute is null, after assign value, here set flg to false */
+		if (isNull[fieldnum- 1 ])
+			isNull[fieldnum- 1 ] = false;
+
+		rettuple = heap_form_tuple(tupDesc, dvalues, isNull);
+		new_value = HeapTupleGetDatum(rettuple);
+
+		if (dvalues)
+			pfree(dvalues);
+		if (isNull)
+			pfree(isNull);
+		ReleaseTupleDesc(tupDesc);
+	}
+	else
+		new_value = value;
+
+	return new_value;
+}
+
+/*
+ * get_set_element
+ * Multidimensional collection type assignment: nested call function set child elements
+ */
+static Datum
+get_set_element(PLiSQL_execstate *estate,
+					  Datum arraydatum,
+					  int nSubscripts,
+					  int *indx,
+					  Datum dataValue,
+					  bool isNull,
+					  int arraytyplen,
+					  int elmlen,
+					  bool elmbyval,
+					  char elmalign,
+					  int *ctypemaxlenarray,
+					  bool *nestedtabkind,
+					  List *fields,
+					  ctype_cast *cast)
+{
+	bool		   isnull;
+	ArrayType	   *parentsarraydatum;
+	ArrayType	   *childrenelementdatum;
+	int			   *subscriptvalsnum;
+	TypeCacheEntry	   *typentry;
+	Datum	   newdatum;
+	int		   *pctypemaxlen;
+
+	if (nSubscripts <= 0)
+	{
+		/* Handle composite type column in collection type */
+		if (arraydatum > 0 && fields)
+		{
+			dataValue = HandleCtypeColumn(estate, arraydatum, dataValue, cast, fields);
+		}
+
+		return dataValue;
+	}
+
+	if (!arraydatum && isNull)
+		ereport(ERROR,
+				(errcode(ERRCODE_PROGRAM_LIMIT_EXCEEDED),
+				 errmsg("Reference to uninitialized collection "),
+				 errdetail("An element or member function of a nested table or varray was referenced (where an initialized collection is needed) without the collection having been initialized")));
+
+	if (indx[0] == 0)
+		ereport(ERROR,
+				(errcode(ERRCODE_PROGRAM_LIMIT_EXCEEDED),
+				 errmsg("Subscript(%d) outside of limit",indx[0]),
+				 errdetail("An in-limit subscript was greater than the count of a varray or too large for a nested table.")));
+
+	if (ctype_alldata_deleted_check(arraydatum))
+		ereport(ERROR,
+				(errcode(ERRCODE_PROGRAM_LIMIT_EXCEEDED),
+				 errmsg("Subscript beyond count"),
+				 errdetail("A subscript was greater than the limit of a varray or non-positive for a varray or nested table. the varry was deleted")));
+
+	parentsarraydatum = DatumGetArrayTypeP(arraydatum);
+	subscriptvalsnum = indx;
+	pctypemaxlen = ctypemaxlenarray;
+
+	if (ctype_data_deleted_check((Datum)parentsarraydatum, subscriptvalsnum[0]))
+	{
+		if (cast)
+			cast->deleted = true;
+	}
+
+	if (nestedtabkind[0])
+	{
+		ctype_data_not_deleted((Datum)parentsarraydatum, subscriptvalsnum[0]);
+		nestedtabkind++;
+	}
+
+	typentry = lookup_type_cache(parentsarraydatum->elemtype , TYPECACHE_EQ_OPR_FINFO);
+	childrenelementdatum = (ArrayType*)array_get_element((Datum)parentsarraydatum,
+									   1,
+									   subscriptvalsnum,
+									   -1,
+									   typentry->typlen,
+									   typentry->typbyval,
+									   typentry->typalign,
+									   &isnull);
+	subscriptvalsnum++;
+	nSubscripts--;
+	pctypemaxlen++;
+
+	newdatum = get_set_element(estate,
+							   (Datum)childrenelementdatum,
+							   nSubscripts,
+							   subscriptvalsnum,
+							   dataValue,
+							   isnull,
+							   -1,//typentry->arraytyplen,
+							   typentry->typlen,
+							   typentry->typbyval,
+							   typentry->typalign,
+							   pctypemaxlen,
+							   nestedtabkind,
+							   fields,
+							   cast);
+
+	subscriptvalsnum--;
+	pctypemaxlen--;
+
+	typentry = lookup_type_cache(parentsarraydatum->elemtype , TYPECACHE_EQ_OPR_FINFO);
+	parentsarraydatum = (ArrayType*)array_set_element((Datum)parentsarraydatum,
+							   1,
+							   subscriptvalsnum,
+							   newdatum,
+							   isNull,
+							   -1,
+							   typentry->typlen,
+							   typentry->typbyval,
+							   typentry->typalign);
+
+	return (Datum)parentsarraydatum;
+}
+
+static bool
+check_assignment_type(PLiSQL_execstate *estate, PLiSQL_datum *target, Oid valtype, int32 valtypmod, int32 subnums)
+{
+	if (valtype == TypenameGetTypid("varray") || valtype == TypenameGetTypid("nestedtab"))
+	{
+		if (PLISQL_DTYPE_CTYPE == estate->datums[valtypmod]->dtype)
+		{
+			PLiSQL_var *var = ((PLiSQL_var *)estate->datums[valtypmod]);
+			valtypmod = var->datatype->atttypmod;
+		}
+	}
+
+	switch (target->dtype)
+	{
+		case PLISQL_DTYPE_CTYPE:
+		{
+			PLiSQL_var *var = (PLiSQL_var *) target;
+
+			Oid tempOid = 0;
+			int32 tempmod = 0;
+			int32 ctypemaxlen= 0;
+			char temptypename[1024]={0};
+			char srctypename[1024] = {0};
+			char destypename[1024] = {0};
+			bool isFindFlag1;
+			bool isFindFlag2;
+			tempOid = var->datatype->typoid;
+			tempmod = var->datatype->atttypmod;
+
+			if (!subnums)
+			{
+				if (var->datatype->atttypmod == valtypmod && var->datatype->typoid == valtype)
+					return true;
+			}
+			else
+			{
+				int i = 0;
+
+				for (i = 0; i < subnums; i++)
+				{
+					if (TypenameGetTypid("varray") != tempOid && TypenameGetTypid("nestedtab") != tempOid )
+						return true;
+
+					find_ctype_cache_by_oidmod(estate, &tempOid, &tempmod, &ctypemaxlen, NULL, temptypename);
+				}
+
+				if (tempOid == valtype && tempmod == valtypmod)
+					return true;
+			}
+
+			if (TypenameGetTypid("varray") != tempOid && TypenameGetTypid("nestedtab") != tempOid)
+				return true;
+
+			isFindFlag1 = find_ctype_cache_by_oidmod(estate, &valtype, &valtypmod, &ctypemaxlen, NULL, srctypename);
+			isFindFlag2 = find_ctype_cache_by_oidmod(estate, &tempOid, &tempmod, &ctypemaxlen, NULL, destypename);
+	
+			if (isFindFlag1 && isFindFlag2)
+				ereport(ERROR,
+					(errcode(ERRCODE_NULL_VALUE_NOT_ALLOWED),
+					 errmsg("expression is of wrong type, [%s] to [%s]", srctypename, destypename)));
+			else
+				ereport(ERROR,
+					(errcode(ERRCODE_NULL_VALUE_NOT_ALLOWED),
+					 errmsg("expression is of wrong type, [%d] to [%d]", valtype, var->datatype->typoid)));
+		}
+
+			break;
+		default:
+			elog(ERROR, "expression is of wrong type");
+			break;
+	}
+
+	return false;
+}
+
+static bool
+find_ctype_cache_by_oidmod(PLiSQL_execstate *estate, Oid *elemtype, int32 *elemmod,
+									   int32 *ctypemaxlen, bool *nestedtabkind, char *typename)
+{
+	int			nDatums = estate->ndatums;
+	PLiSQL_datum **ppDatums = estate->datums;
+	PLiSQL_datum *pDatums;
+	int i ;
+
+	if (*elemtype != TypenameGetTypid("varray") && *elemtype != TypenameGetTypid("nestedtab"))
+	{
+		if (typename)
+			strcpy(typename, get_typname(*elemtype));
+
+		return true;
+	}
+
+	for (i = 0; i < nDatums; i++)
+	{
+		pDatums = ppDatums[i];
+
+		switch (pDatums->dtype)
+		{
+			case PLISQL_DTYPE_CTYPE:
+			{
+				PLiSQL_var *var = (PLiSQL_var *) pDatums;
+
+				if (*elemtype == var->datatype->typoid && *elemmod == var->dno)
+				{
+					*elemtype = var->datatype->elemOid;
+					*elemmod = var->datatype->elemmod;
+					*ctypemaxlen = var->datatype->ctypemaxlen;
+
+					if (typename)
+						strcpy(typename, var->refname);
+
+					if (nestedtabkind)
+						*nestedtabkind = var->datatype->typisnested;
+
+					return true;
+				}
+				break;
+			}
+			default:
+				break;
+		}
+	}
+
+	return false;
+}
+
+static bool
+find_ctype_cache_by_funcname(PLiSQL_execstate *estate,   Oid *elemtype, int32 *elemmod,
+										 int32 *ctypemaxlen, char *typename)
+{
+	int			nDatums = estate->ndatums;
+	PLiSQL_datum **ppDatums = estate->datums;
+	PLiSQL_datum *pDatums;
+	int i ;
+
+	for (i = 0; i < nDatums; i++)
+	{
+		pDatums = ppDatums[i];
+
+		switch (pDatums->dtype)
+		{
+			case PLISQL_DTYPE_CTYPE:
+			{
+				PLiSQL_var *var = (PLiSQL_var *) pDatums;
+
+				if (!strcmp(typename, var->refname))
+				{
+					*elemtype = var->datatype->typoid;
+					*elemmod = var->datatype->atttypmod;
+					*ctypemaxlen = var->datatype->ctypemaxlen;
+
+					return true;
+				}
+				break;
+			}
+			default:
+				break;
+		}
+	}
+
+	return false;
 }

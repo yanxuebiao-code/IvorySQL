@@ -70,6 +70,7 @@
 /* Globally visible state variables */
 bool		creating_extension = false;
 Oid			CurrentExtensionObject = InvalidOid;
+bool		plisql_extension = false;
 
 /*
  * Internal data structure to hold the results of parsing a control file
@@ -964,6 +965,15 @@ execute_extension_script(Oid extensionOid, ExtensionControlFile *control,
 	 */
 	creating_extension = true;
 	CurrentExtensionObject = extensionOid;
+
+	/*
+	 * plisql extension have collection type system functions, these functions
+	 * have use abstract type, when create this extension, do not to check
+	 * parameters whether use abstract type.
+	 */
+	if (strstr(filename, "plisql--1.0.sql"))
+		plisql_extension = true;
+
 	PG_TRY();
 	{
 		char	   *c_sql = read_extension_script_file(control, filename);
@@ -1040,6 +1050,7 @@ execute_extension_script(Oid extensionOid, ExtensionControlFile *control,
 	{
 		creating_extension = false;
 		CurrentExtensionObject = InvalidOid;
+		plisql_extension = false;
 	}
 	PG_END_TRY();
 

@@ -2854,6 +2854,7 @@ eval_const_expressions_mutator(Node *node,
 				newexpr = makeNode(CoerceViaIO);
 				newexpr->arg = (Expr *) linitial(args);
 				newexpr->resulttype = expr->resulttype;
+				newexpr->resultmod = expr->resultmod;
 				newexpr->resultcollid = expr->resultcollid;
 				newexpr->coerceformat = expr->coerceformat;
 				newexpr->location = expr->location;

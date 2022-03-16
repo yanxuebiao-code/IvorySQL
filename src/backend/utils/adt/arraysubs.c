@@ -23,6 +23,7 @@
 #include "utils/array.h"
 #include "utils/builtins.h"
 #include "utils/lsyscache.h"
+#include "utils/typcache.h"
 
 
 /* SubscriptingRefState.workspace for array subscripting execution */
@@ -243,14 +244,75 @@ array_subscript_fetch(ExprState *state,
 	/* Should not get here if source array (or any subscript) is null */
 	Assert(!(*op->resnull));
 
-	*op->resvalue = array_get_element(*op->resvalue,
-									  sbsrefstate->numupper,
-									  workspace->upperindex,
-									  workspace->refattrlength,
-									  workspace->refelemlength,
-									  workspace->refelembyval,
-									  workspace->refelemalign,
-									  op->resnull);
+	/* Get multiple dimensions collection type variable value */
+	if (sbsrefstate->numupper > 1 && workspace->refattrlength <= 0 &&
+		!VARATT_IS_EXTERNAL_EXPANDED(DatumGetPointer(*op->resvalue)))
+	{
+		TypeCacheEntry	   *typentry;
+		int	   i = 0;
+		int	   upperindex[MAXDIM] = {0};
+		int	   old_numupper = sbsrefstate->numupper;
+		ArrayType	   *array = DatumGetArrayTypeP(*op->resvalue);
+
+		if (array->elemtype == TypenameGetTypid("nestedtab") ||
+			array->elemtype == TypenameGetTypid("varray"))
+		{
+			typentry = lookup_type_cache(array->elemtype , TYPECACHE_EQ_OPR_FINFO);
+			*op->resvalue = array_get_element(*op->resvalue,
+											  sbsrefstate->numupper,
+											  workspace->upperindex,
+											  workspace->refattrlength,
+											  typentry->typlen,
+											  typentry->typbyval,
+											  typentry->typalign,
+											  op->resnull);
+			sbsrefstate->numupper--;
+
+			/* Recursive end */
+			if (sbsrefstate->numupper == 0 || *op->resnull)
+				return;
+
+			/* Delete the first index */
+			while(i < sbsrefstate->numupper)
+			{
+				upperindex[i] = workspace->upperindex[i + 1];
+				i++;
+			}
+
+			i = 0;
+			/* Reset upperindex */
+			while (i < MAXDIM)
+			{
+				workspace->upperindex[i] = upperindex[i];
+				i++;
+			}
+			array_subscript_fetch(state, op, econtext);
+
+			sbsrefstate->numupper = old_numupper;
+		}
+		else
+		{
+			*op->resvalue = array_get_element(*op->resvalue,
+											  sbsrefstate->numupper,
+											  workspace->upperindex,
+											  workspace->refattrlength,
+											  workspace->refelemlength,
+											  workspace->refelembyval,
+											  workspace->refelemalign,
+											  op->resnull);
+		}
+	}
+	else
+	{
+		*op->resvalue = array_get_element(*op->resvalue,
+										  sbsrefstate->numupper,
+										  workspace->upperindex,
+										  workspace->refattrlength,
+										  workspace->refelemlength,
+										  workspace->refelembyval,
+										  workspace->refelemalign,
+										  op->resnull);
+	}
 }
 
 /*

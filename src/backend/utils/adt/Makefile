@@ -26,6 +26,7 @@ OBJS = \
 	cash.o \
 	char.o \
 	cryptohashfuncs.o \
+	ctypefuncs.o \
 	date.o \
 	datetime.o \
 	datum.o \

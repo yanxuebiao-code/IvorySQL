@@ -97,6 +97,10 @@ typedef Node *(*ParseParamRefHook) (ParseState *pstate, ParamRef *pref);
 typedef Node *(*CoerceParamHook) (ParseState *pstate, Param *param,
 								  Oid targetTypeId, int32 targetTypeMod,
 								  int location);
+typedef Oid (*FindCtypeRefHook) (ParseState *pstate, char* varname, char **typname, int32 *ctypemaxlen,
+										bool *isctype);
+typedef Oid (*FindCtypeByoidmodRefHook) (ParseState *pstate, char* varname, Oid *oid, int32 *mod,
+													int32 *ctypemaxlen, int32 findflag);
 
 
 /*
@@ -236,6 +240,10 @@ struct ParseState
 	bool		p_union_flag;
 	Oid		   *p_type;
 	int			p_num;
+
+	/* find collection type element oid */
+	FindCtypeRefHook		p_find_ctype_hook;
+	FindCtypeByoidmodRefHook p_find_ctype_by_oidmod_hook;
 };
 
 /*
@@ -339,7 +347,7 @@ extern void setup_parser_errposition_callback(ParseCallbackState *pcbstate,
 											  ParseState *pstate, int location);
 extern void cancel_parser_errposition_callback(ParseCallbackState *pcbstate);
 
-extern void transformContainerType(Oid *containerType, int32 *containerTypmod);
+extern void transformContainerType(ParseState *pstate, Oid *containerType, int32 *containerTypmod);
 
 extern SubscriptingRef *transformContainerSubscripts(ParseState *pstate,
 													 Node *containerBase,

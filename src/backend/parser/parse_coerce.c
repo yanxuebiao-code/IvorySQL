@@ -986,6 +986,7 @@ build_coercion_expression(Node *node,
 
 		iocoerce->arg = (Expr *) node;
 		iocoerce->resulttype = targetTypeId;
+		iocoerce->resultmod = targetTypMod;
 		/* resultcollid will be set by parse_collate.c */
 		iocoerce->coerceformat = cformat;
 		iocoerce->location = location;
@@ -2305,6 +2306,10 @@ enforce_generic_type_consistency(const Oid *actual_arg_types,
 	{
 		Oid			decl_type = declared_arg_types[j];
 		Oid			actual_type = actual_arg_types[j];
+
+		if (TypenameGetTypid("varray") == actual_type ||
+		   TypenameGetTypid("nestedtab") == actual_type)
+			elem_typeid = actual_type;
 
 		if (decl_type == ANYELEMENTOID ||
 			decl_type == ANYNONARRAYOID ||

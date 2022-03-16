@@ -927,7 +927,7 @@ transformAssignmentSubscripts(ParseState *pstate,
 	/* Identify the actual container type involved */
 	containerType = targetTypeId;
 	containerTypMod = targetTypMod;
-	transformContainerType(&containerType, &containerTypMod);
+	transformContainerType(pstate, &containerType, &containerTypMod);
 
 	/* Process subscripts and identify required type for RHS */
 	sbsref = transformContainerSubscripts(pstate,

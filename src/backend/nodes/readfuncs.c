@@ -950,6 +950,7 @@ _readCoerceViaIO(void)
 
 	READ_NODE_FIELD(arg);
 	READ_OID_FIELD(resulttype);
+	READ_LOCATION_FIELD(resultmod);
 	READ_OID_FIELD(resultcollid);
 	READ_ENUM_FIELD(coerceformat, CoercionForm);
 	READ_LOCATION_FIELD(location);

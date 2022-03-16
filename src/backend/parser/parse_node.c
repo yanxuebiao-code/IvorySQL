@@ -63,6 +63,8 @@ make_parsestate(ParseState *parentParseState)
 		pstate->p_ref_hook_state = parentParseState->p_ref_hook_state;
 		/* query environment stays in context for the whole parse analysis */
 		pstate->p_queryEnv = parentParseState->p_queryEnv;
+		pstate->p_find_ctype_hook = parentParseState->p_find_ctype_hook;
+		pstate->p_find_ctype_by_oidmod_hook = parentParseState->p_find_ctype_by_oidmod_hook;
 	}
 
 	pstate->p_pkgoid = InvalidOid;
@@ -191,8 +193,28 @@ pcb_error_callback(void *arg)
  * Note that caller still needs to check if the result type is a container.
  */
 void
-transformContainerType(Oid *containerType, int32 *containerTypmod)
+transformContainerType(ParseState *pstate, Oid *containerType, int32 *containerTypmod)
 {
+	/*
+	 * get elemtype oid of varray or nested table
+	 */
+	if (*containerType == TypenameGetTypid("varray") ||
+		*containerType == TypenameGetTypid("nestedtab"))
+	{
+		Oid tempoid;
+		int32 tempmod;
+		int32 ctypemaxlen;
+
+		tempoid = *containerType;
+		tempmod = *containerTypmod;
+		if (pstate->p_find_ctype_by_oidmod_hook != NULL)
+		{
+			tempoid = pstate->p_find_ctype_by_oidmod_hook(pstate, NULL, &tempoid, &tempmod, &ctypemaxlen, 1);
+			*containerType = tempoid;
+			*containerTypmod = tempmod;
+		}
+	}
+
 	/*
 	 * If the input is a domain, smash to base type, and extract the actual
 	 * typmod to be applied to the base type. Subscripting a domain is an
@@ -263,8 +285,24 @@ transformContainerSubscripts(ParseState *pstate,
 	 * assignment case the caller already did this, since it also needs to
 	 * know the actual container type.
 	 */
-	if (!isAssignment)
-		transformContainerType(&containerType, &containerTypMod);
+	if (list_length(indirection) <= 1)
+	{
+		if (!isAssignment)
+			transformContainerType(pstate, &containerType, &containerTypMod);
+	}
+	else
+	{
+		/*
+		 * Get the final element type of the multidimensional collection type.
+		 */
+		foreach(idx, indirection)
+		{
+			if (!isAssignment ||
+				(containerType == TypenameGetTypid("varray") ||
+				containerType == TypenameGetTypid("nestedtab")))
+				transformContainerType(pstate, &containerType, &containerTypMod);
+		}
+	}
 
 	/*
 	 * Verify that the container type is subscriptable, and get its support

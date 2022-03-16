@@ -29,6 +29,7 @@
 #include "parser/parse_clause.h"
 #include "parser/parse_coerce.h"
 #include "parser/parse_collate.h"
+#include "parser/parse_ctype.h"
 #include "parser/parse_expr.h"
 #include "parser/parse_func.h"
 #include "parser/parse_oper.h"
@@ -205,8 +206,25 @@ transformExprRecurse(ParseState *pstate, Node *expr)
 			break;
 
 		case T_FuncCall:
-			result = transformFuncCall(pstate, (FuncCall *) expr);
-			break;
+			{
+				bool	   isCtype = false;
+				Node	   *node = NULL;
+				FuncCall	   *fn = (FuncCall *) expr;
+
+				/* As collection type function to parse */
+				isCtype = transformFuncCallCheckIsCtypeFunc(pstate, fn->funcname);
+				if(isCtype)
+					return transformFuncCallCtypeSubscriptFunction(pstate, fn, false);
+
+				/* As collection type construct function to parse */
+				node = transformFuncCallCheckIsCtypeConstructor(pstate, fn);
+				if (node)
+					return node;
+
+				/* As default function to parse */
+				result = transformFuncCall(pstate, fn);
+				break;
+			}
 
 		case T_MultiAssignRef:
 			result = transformMultiAssignRef(pstate, (MultiAssignRef *) expr);
@@ -398,6 +416,8 @@ transformIndirection(ParseState *pstate, A_Indirection *ind)
 	List	   *subscripts = NIL;
 	int			location = exprLocation(result);
 	ListCell   *i;
+	List	   *fargs = NULL;
+	bool	   isCtype = transformIndirectionCheckIsCtypeFunc(pstate, ind->arg, ind->indirection);
 
 	/*
 	 * We have to split any field-selection operations apart from
@@ -433,9 +453,43 @@ transformIndirection(ParseState *pstate, A_Indirection *ind)
 															   false);
 			subscripts = NIL;
 
+			if (isCtype)
+			{
+				List	*targs1 = NULL;
+				ListCell	*args1 = NULL;
+
+				/* Transform the list of arguments ... */
+				if (ind->func_args)
+				{
+					foreach(args1, ind->func_args->args)
+					{
+						targs1 = lappend(targs1, transformExprRecurse(pstate,
+																	(Node *) lfirst(args1)));
+					}
+				}
+
+				/*
+				 * Check if the variable array instance is called the variable array function,
+				 * if not the report error
+				 */
+				if (IsA(result, SubscriptingRef))
+				{
+					SubscriptingRef*subref = (SubscriptingRef*)result;
+
+					if (subref->refelemtype != TypenameGetTypid("varray") &&
+						subref->refelemtype != TypenameGetTypid("nestedtab"))
+						ereport(ERROR,
+								(errcode(ERRCODE_UNDEFINED_COLUMN),
+								 errmsg("The reference to the variable \" %s \"is invalid",
+										get_typname(subref->refelemtype))));
+				}
+
+				fargs = lcons(result, targs1);
+			}
+
 			newresult = ParseFuncOrColumn(pstate,
 										  list_make1(n),
-										  list_make1(result),
+										  fargs ? fargs : list_make1(result),
 										  last_srf,
 										  NULL,
 										  false,
@@ -657,6 +711,25 @@ transformColumnRef(ParseState *pstate, ColumnRef *cref)
 							seq_func = makeFuncCall(list_make2(makeString("pg_catalog"), makeString(strVal(field2))),
 													 list_make1(n), COERCE_EXPLICIT_CALL, cref->location);
 							return transformFuncCall(pstate, seq_func);
+						}
+						/* Call collection type function */
+						else if (!strcmp(strVal(field2), "delete")|| !strcmp(strVal(field2), "trim")
+							|| !strcmp(strVal(field2), "extend")|| !strcmp(strVal(field2), "exists")
+							|| !strcmp(strVal(field2), "first")|| !strcmp(strVal(field2), "last")
+							|| !strcmp(strVal(field2), "count")|| !strcmp(strVal(field2), "limit")
+							|| !strcmp(strVal(field2), "prior")|| !strcmp(strVal(field2), "next"))
+						{
+							if (pstate->p_find_ctype_hook != NULL)
+							{
+								Oid elemOid = pstate->p_find_ctype_hook(pstate, strVal(field1), NULL, NULL, NULL);
+								if (InvalidOid != elemOid)
+								{
+									FuncCall	   *seq_func = NULL;
+									seq_func = makeFuncCall(list_make2(makeString(strVal(field1)), makeString(strVal(field2))),
+															 NULL, COERCE_EXPLICIT_CALL, cref->location);
+									return transformExprRecurse(pstate, (Node *)seq_func);
+								}
+							}
 						}
 					}
 

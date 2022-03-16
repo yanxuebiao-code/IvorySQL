@@ -30,6 +30,8 @@
 extern PGDLLIMPORT bool creating_extension;
 extern PGDLLIMPORT Oid CurrentExtensionObject;
 
+extern PGDLLIMPORT bool plisql_extension;
+
 
 extern ObjectAddress CreateExtension(ParseState *pstate, CreateExtensionStmt *stmt);
 

@@ -555,7 +555,8 @@ plpgsql_exec_function(PLpgSQL_function *func, FunctionCallInfo fcinfo,
 							assign_simple_var(&estate, var,
 											  expand_array(var->value,
 														   estate.datum_context,
-														   NULL),
+														   NULL,
+														   -1),
 											  false,
 											  true);
 						}
@@ -5080,7 +5081,8 @@ exec_assign_value(PLpgSQL_execstate *estate,
 						/* array and not already R/W, so apply expand_array */
 						newvalue = expand_array(newvalue,
 												estate->datum_context,
-												NULL);
+												NULL,
+												-1);
 					}
 					else
 					{

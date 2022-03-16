@@ -117,6 +117,9 @@ ParseFuncOrColumn(ParseState *pstate, List *funcname, List *fargs,
 	FuncDetailCode fdresult;
 	char		aggkind = 0;
 	ParseCallbackState pcbstate;
+	char		*funcnametemp = NULL;
+	Oid			ctypeElemOid;
+	bool		isCtype = false;
 
 	/*
 	 * If there's an aggregate filter, transform it using transformWhereClause
@@ -141,6 +144,25 @@ ParseFuncOrColumn(ParseState *pstate, List *funcname, List *fargs,
 							   FUNC_MAX_ARGS),
 				 parser_errposition(pstate, location)));
 
+	if (fn)
+	{
+		ListCell   *i;
+
+		foreach(i, fn->funcname)
+		{
+			Node	   *n = lfirst(i);
+
+			if (IsA(n, String))
+			{
+				funcnametemp = strVal(n);
+
+				if (!strcmp(funcnametemp, "varray_constructor") ||
+					!strcmp(funcnametemp, "nestedtab_constructor"))
+					isCtype = true;
+			}
+		}
+	}
+
 	/*
 	 * Extract arg type info in preparation for function lookup.
 	 *
@@ -163,6 +185,9 @@ ParseFuncOrColumn(ParseState *pstate, List *funcname, List *fargs,
 			fargs = foreach_delete_current(fargs, l);
 			continue;
 		}
+
+		if (isCtype && !nargs)
+			ctypeElemOid = ((Const*)linitial(fargs))->constvalue;
 
 		actual_arg_types[nargs++] = argtype;
 	}
@@ -661,6 +686,14 @@ ParseFuncOrColumn(ParseState *pstate, List *funcname, List *fargs,
 		actual_arg_types[nargsplusdefs++] = exprType(expr);
 	}
 
+	if (isCtype)
+	{
+		int subnum;
+
+		for (subnum = 2; subnum < nargsplusdefs; subnum++)
+			declared_arg_types[subnum] = ctypeElemOid;
+	}
+
 	/*
 	 * enforce consistency with polymorphic argument and return types,
 	 * possibly adjusting return type or declared_arg_types (which will be
@@ -671,6 +704,14 @@ ParseFuncOrColumn(ParseState *pstate, List *funcname, List *fargs,
 											   nargsplusdefs,
 											   rettype,
 											   false);
+
+	if (isCtype)
+	{
+		int subnum;
+
+		for (subnum = 2; subnum < nargsplusdefs; subnum++)
+			declared_arg_types[subnum] = ctypeElemOid;
+	}
 
 	/* perform the necessary typecasting of arguments */
 	make_fn_arguments(pstate, fargs, actual_arg_types, declared_arg_types);

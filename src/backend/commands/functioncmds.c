@@ -97,6 +97,9 @@ compute_return_type(TypeName *returnType, Oid languageOid,
 	Type		typtup;
 	AclResult	aclresult;
 
+	/* Allow use abstract type in return clause */
+	returnType->abst_type = true;
+
 	typtup = LookupTypeName(NULL, returnType, NULL, false);
 
 	if (typtup)

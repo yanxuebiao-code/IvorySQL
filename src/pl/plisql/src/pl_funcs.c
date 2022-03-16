@@ -738,6 +738,7 @@ plisql_free_function_memory(PLiSQL_function *func)
 		switch (d->dtype)
 		{
 			case PLISQL_DTYPE_VAR:
+			case PLISQL_DTYPE_CTYPE:
 			case PLISQL_DTYPE_PROMISE:
 				{
 					PLiSQL_var *var = (PLiSQL_var *) d;
@@ -1613,6 +1614,7 @@ plisql_dumptree(PLiSQL_function *func)
 		switch (d->dtype)
 		{
 			case PLISQL_DTYPE_VAR:
+			case PLISQL_DTYPE_CTYPE:
 			case PLISQL_DTYPE_PROMISE:
 				{
 					PLiSQL_var *var = (PLiSQL_var *) d;

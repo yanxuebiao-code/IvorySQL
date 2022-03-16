@@ -1040,6 +1040,38 @@ HandleQualifiedName(List *names, char **funcname, bool missing_ok)
 	return np_id;
 }
 
+/*
+ * ModifyQualifiedName
+ * modify function name if it is constructor function
+ */
+void ModifyQualifiedName(List *names, char *newname)
+{
+	char	*pnewname = NULL;
+
+	if (!names || !newname)
+		return;
+
+	pnewname = pstrdup(newname);
+
+	switch (list_length(names))
+	{
+		case 1:
+			strVal(linitial(names)) = pnewname;
+			break;
+		case 2:
+			strVal(lsecond(names)) = pnewname;
+			break;
+		case 3:
+			strVal(lthird(names)) = pnewname;
+			break;
+		default:
+			ereport(ERROR,
+				(errcode(ERRCODE_SYNTAX_ERROR),
+					errmsg("improper qualified name (too many dotted names): %s",
+						NameListToString(names))));
+		break;
+	}
+}
 
 /*
  * FuncnameGetCandidates

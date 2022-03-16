@@ -2160,6 +2160,30 @@ get_typlen(Oid typid)
 }
 
 /*
+ * get_typname
+ *
+ *		Given the type OID, return the name of the type.
+ */
+char *
+get_typname(Oid typid)
+{
+	char	*typname;
+	HeapTuple	tp;
+	Form_pg_type typtup;
+
+	tp = SearchSysCache1(TYPEOID, ObjectIdGetDatum(typid));
+	if (!HeapTupleIsValid(tp))
+		elog(ERROR, "cache lookup failed for relation %u", typid);
+
+	typtup = (Form_pg_type) GETSTRUCT(tp);
+
+	typname = NameStr(typtup->typname);
+	ReleaseSysCache(tp);
+
+	return typname;
+}
+
+/*
  * get_typbyval
  *
  *		Given the type OID, determine whether the type is returned by value or

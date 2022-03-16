@@ -20,6 +20,7 @@ OBJS = \
 	parse_coerce.o \
 	parse_collate.o \
 	parse_cte.o \
+	parse_ctype.o \
 	parse_enr.o \
 	parse_expr.o \
 	parse_func.o \
@@ -32,7 +33,7 @@ OBJS = \
 	parse_utilcmd.o \
 	parser.o \
 	scan.o \
-	scansup.o
+	scansup.o \
 
 include $(top_srcdir)/src/backend/common.mk
 

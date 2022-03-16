@@ -113,6 +113,8 @@ extern int	ExtractQualifiedName(List *names, QualifiedName *qu);
 
 extern Oid	HandleQualifiedName(List *names, char **funcname, bool missing_ok);
 
+extern void ModifyQualifiedName(List *names, char *newname);
+
 extern FuncCandidateList FuncnameGetCandidates(List *names,
 											   int nargs, List *argnames,
 											   bool expand_variadic,

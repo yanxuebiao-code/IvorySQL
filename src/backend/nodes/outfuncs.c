@@ -1442,6 +1442,7 @@ _outCoerceViaIO(StringInfo str, const CoerceViaIO *node)
 
 	WRITE_NODE_FIELD(arg);
 	WRITE_OID_FIELD(resulttype);
+	WRITE_LOCATION_FIELD(resultmod);
 	WRITE_OID_FIELD(resultcollid);
 	WRITE_ENUM_FIELD(coerceformat, CoercionForm);
 	WRITE_LOCATION_FIELD(location);

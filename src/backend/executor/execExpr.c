@@ -31,6 +31,7 @@
 #include "postgres.h"
 
 #include "access/nbtree.h"
+#include "catalog/namespace.h"
 #include "catalog/objectaccess.h"
 #include "catalog/pg_type.h"
 #include "executor/execExpr.h"
@@ -1608,7 +1609,16 @@ ExecInitExprRec(Expr *node, ExprState *state,
 				fcinfo_in = scratch.d.iocoerce.fcinfo_data_in;
 				fcinfo_in->args[1].value = ObjectIdGetDatum(typioparam);
 				fcinfo_in->args[1].isnull = false;
-				fcinfo_in->args[2].value = Int32GetDatum(-1);
+
+				/*
+				 * set type mod if it is varray type or nested table type
+				 * it will use mod find type info from datums arr 
+				 */
+				if (TypenameGetTypid("varray") == iocoerce->resulttype ||
+					TypenameGetTypid("nestedtab") == iocoerce->resulttype)
+					fcinfo_in->args[2].value = iocoerce->resultmod;
+				else
+					fcinfo_in->args[2].value = Int32GetDatum(-1);
 				fcinfo_in->args[2].isnull = false;
 
 				ExprEvalPushStep(state, &scratch);

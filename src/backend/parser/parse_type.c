@@ -28,6 +28,7 @@
 #include "commands/packagecmds.h"
 #include "catalog/pg_package.h"
 #include "commands/dbcommands.h"
+#include "commands/extension.h"
 #include "miscadmin.h"
 
 /* Hook for typmod to get typename in typenameTypeMod() */
@@ -36,6 +37,7 @@ TypenameTypeModIn_hook_type TypenameTypeModIn_hook = NULL;
 
 static int32 typenameTypeMod(ParseState *pstate, const TypeName *typeName,
 							 Type typ);
+static void ValidateTypeLegal(const TypeName *typeName);
 
 
 /*
@@ -85,6 +87,8 @@ LookupTypeNameExtended(ParseState *pstate,
 	Oid			typoid;
 	HeapTuple	tup;
 	int32		typmod;
+
+	ValidateTypeLegal(typeName);
 
 	if (typeName->names == NIL)
 	{
@@ -922,5 +926,40 @@ parseTypeString(const char *str, Oid *typeid_p, int32 *typmod_p, bool missing_ok
 					 parser_errposition(NULL, typeName->location)));
 		*typeid_p = typ->oid;
 		ReleaseSysCache(tup);
+	}
+}
+
+static void
+ValidateTypeLegal(const TypeName *typeName)
+{
+	if (typeName->names)
+	{
+		QualifiedName qu;
+
+		(void)ExtractQualifiedName(typeName->names, &qu);
+
+		/* Column type can not is abstract type */
+		if (!plisql_extension && !typeName->abst_type)
+		{
+			if (qu.schema)
+			{
+				if (!strcmp(qu.schema, "pg_catalog"))
+				{
+					if (!strcmp(qu.func, "nestedtab") || !strcmp(qu.func, "_nestedtab") ||
+						!strcmp(qu.func, "varray") || !strcmp(qu.func, "_varray"))
+						ereport(ERROR,
+								(errcode(ERRCODE_WRONG_OBJECT_TYPE),
+								 errmsg("column type can not is abstract type \"%s\"", qu.func)));
+				}
+			}
+			else
+			{
+				if (!strcmp(qu.func, "nestedtab") || !strcmp(qu.func, "_nestedtab") ||
+					!strcmp(qu.func, "varray") || !strcmp(qu.func, "_varray"))
+					ereport(ERROR,
+							(errcode(ERRCODE_WRONG_OBJECT_TYPE),
+							 errmsg("column type can not is abstract type \"%s\"", qu.func)));
+			}
+		}
 	}
 }

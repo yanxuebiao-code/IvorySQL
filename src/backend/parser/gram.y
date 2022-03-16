@@ -224,6 +224,8 @@ static void preprocess_pubobj_list(List *pubobjspec_list,
 								   core_yyscan_t yyscanner);
 static Node *makeRecursiveViewSelect(char *relname, List *aliases, Node *query);
 static void check_pkgname(List *pkgname, char *end_name, core_yyscan_t yyscanner);
+static Node *makeNestedSmallBrackets(List *name, List *bracket1, List *sortclause, List *nestbracket,
+									 int location, core_yyscan_t yyscanner);
 
 
 %}
@@ -673,6 +675,8 @@ static void check_pkgname(List *pkgname, char *end_name, core_yyscan_t yyscanner
 %type <startWith>	start_with_clause opt_start_with_clause
 %type <connectBy>	connect_by_clause
 %type <boolean>		opt_nocycle
+%type <list>	type_indirection smallbrackets optsmallbrackets
+%type <node>	type_func_arg smallbracket type_func type_indirection_el
 
 /*
  * Non-keyword token types.  These are hard-wired into the "flex" lexer.
@@ -1105,15 +1109,28 @@ stmt:
 
 CallStmt:	CALL func_application
 				{
-					CallStmt *n = makeNode(CallStmt);
-					n->funccall = castNode(FuncCall, $2);
-					$$ = (Node *)n;
+					if (IsA($2, ColumnRef) || IsA($2, A_Indirection))
+					{
+						parser_yyerror("syntax error");
+					}
+					else
+					{
+						CallStmt *n = makeNode(CallStmt);
+						n->funccall = castNode(FuncCall, $2);
+						$$ = (Node *)n;
+					}
 				}
 			| CALL package_name	/* call a procedure with no parameters, without parentheses. */
 				{
 					CallStmt *n = makeNode(CallStmt);
 					n->funccall = castNode(FuncCall, makeFuncCall($2, NIL,
 											COERCE_EXPLICIT_CALL, @2));
+					$$ = (Node *)n;
+				}
+			| CALL type_func
+				{
+					CallStmt *n = makeNode(CallStmt);
+					n->typeexpr = castNode(A_Indirection, $2);
 					$$ = (Node *)n;
 				}
 		;
@@ -15090,19 +15107,106 @@ c_expr:		columnref								{ $$ = $1; }
 
 		;
 
+type_func: func_expr type_indirection
+				{
+					A_Indirection *n = makeNode(A_Indirection);
+					n->arg = $1;
+					n->indirection = $2;
+					$$ = (Node *)n;
+				}
+			| func_expr type_indirection '(' ')'
+				{
+					A_Indirection *n = makeNode(A_Indirection);
+					n->arg = $1;
+					n->indirection = $2;
+					$$ = (Node *)n;
+				}
+			| func_expr type_indirection '(' type_func_arg ')'
+				{
+					A_Indirection *n = makeNode(A_Indirection);
+					n->arg = $1;
+					n->indirection = $2;
+					n->func_args = castNode(FuncCall, $4);
+					$$ = (Node *)n;
+				}
+		;
+
+type_func_arg:
+			func_arg_list opt_sort_clause
+				{
+					FuncCall   *n = makeNode(FuncCall);
+					n->args = $1;
+					n->agg_order = $2;
+
+					$$ = (Node *)n;
+				}
+			| VARIADIC func_arg_expr opt_sort_clause
+				{
+					FuncCall   *n = makeNode(FuncCall);
+					n->args = list_make1($2);
+					n->func_variadic = true;
+					n->agg_order = $3;
+
+					$$ = (Node *)n;
+				}
+			| func_arg_list ',' VARIADIC func_arg_expr opt_sort_clause
+				{
+					FuncCall   *n = makeNode(FuncCall);
+					n->args = lappend($1, $4);
+					n->func_variadic = true;
+					n->agg_order = $5;
+
+					$$ = (Node *)n;
+				}
+			| ALL func_arg_list opt_sort_clause
+				{
+					FuncCall   *n = makeNode(FuncCall);
+					n->args = $2;
+					n->agg_order = $3;
+
+					$$ = (Node *)n;
+				}
+			| DISTINCT func_arg_list opt_sort_clause
+				{
+					FuncCall *n = makeNode(FuncCall);
+					n->args = $2;
+					n->agg_order = $3;
+					n->agg_distinct = true;
+
+					$$ = (Node *)n;
+				}
+		;
+
+type_indirection:
+			type_indirection_el 					{ $$ = list_make1($1); }
+			| type_indirection type_indirection_el	{ $$ = lappend($1, $2); }
+		;
+
+type_indirection_el: '.' attr_name 				{ $$ = (Node *) makeString($2); }
+		;
+
 func_application: func_name '(' ')'
 				{
 					$$ = (Node *) makeFuncCall($1, NIL,
 											   COERCE_EXPLICIT_CALL,
 											   @1);
 				}
-			| func_name '(' func_arg_list opt_sort_clause ')'
+			| func_name '(' func_arg_list opt_sort_clause ')' optsmallbrackets
 				{
-					FuncCall *n = makeFuncCall($1, $3,
-											   COERCE_EXPLICIT_CALL,
-											   @1);
-					n->agg_order = $4;
-					$$ = (Node *)n;
+					/* Deal with nested small bracket */
+					if ($6)
+					{
+						$$ = makeNestedSmallBrackets($1, $3, $4, $6, @1, yyscanner);
+					}
+					/* Deal with single small bracket */
+					else
+					{
+						FuncCall *n = makeFuncCall($1, $3,
+												   COERCE_EXPLICIT_CALL,
+												   @1);
+						n->agg_order = $4;
+						$$ = (Node *)n;
+					}
 				}
 			| func_name '(' VARIADIC func_arg_expr opt_sort_clause ')'
 				{
@@ -15175,38 +15279,48 @@ func_application: func_name '(' ')'
  */
 func_expr: func_application within_group_clause filter_clause over_clause
 				{
-					FuncCall *n = (FuncCall *) $1;
-					/*
-					 * The order clause for WITHIN GROUP and the one for
-					 * plain-aggregate ORDER BY share a field, so we have to
-					 * check here that at most one is present.  We also check
-					 * for DISTINCT and VARIADIC here to give a better error
-					 * location.  Other consistency checks are deferred to
-					 * parse analysis.
-					 */
-					if ($2 != NIL)
+					if (IsA($1, ColumnRef) || IsA($1, A_Indirection))
 					{
-						if (n->agg_order != NIL)
-							ereport(ERROR,
-									(errcode(ERRCODE_SYNTAX_ERROR),
-									 errmsg("cannot use multiple ORDER BY clauses with WITHIN GROUP"),
-									 parser_errposition(@2)));
-						if (n->agg_distinct)
-							ereport(ERROR,
-									(errcode(ERRCODE_SYNTAX_ERROR),
-									 errmsg("cannot use DISTINCT with WITHIN GROUP"),
-									 parser_errposition(@2)));
-						if (n->func_variadic)
-							ereport(ERROR,
-									(errcode(ERRCODE_SYNTAX_ERROR),
-									 errmsg("cannot use VARIADIC with WITHIN GROUP"),
-									 parser_errposition(@2)));
-						n->agg_order = $2;
-						n->agg_within_group = true;
+						if ($2 || $3 || $4)
+							parser_yyerror("syntax error");
+
+						$$ = $1;
 					}
-					n->agg_filter = $3;
-					n->over = $4;
-					$$ = (Node *) n;
+					else
+					{
+						FuncCall *n = (FuncCall *) $1;
+						/*
+						 * The order clause for WITHIN GROUP and the one for
+						 * plain-aggregate ORDER BY share a field, so we have to
+						 * check here that at most one is present.  We also check
+						 * for DISTINCT and VARIADIC here to give a better error
+						 * location.  Other consistency checks are deferred to
+						 * parse analysis.
+						 */
+						if ($2 != NIL)
+						{
+							if (n->agg_order != NIL)
+								ereport(ERROR,
+										(errcode(ERRCODE_SYNTAX_ERROR),
+										 errmsg("cannot use multiple ORDER BY clauses with WITHIN GROUP"),
+										 parser_errposition(@2)));
+							if (n->agg_distinct)
+								ereport(ERROR,
+										(errcode(ERRCODE_SYNTAX_ERROR),
+										 errmsg("cannot use DISTINCT with WITHIN GROUP"),
+										 parser_errposition(@2)));
+							if (n->func_variadic)
+								ereport(ERROR,
+										(errcode(ERRCODE_SYNTAX_ERROR),
+										 errmsg("cannot use VARIADIC with WITHIN GROUP"),
+										 parser_errposition(@2)));
+							n->agg_order = $2;
+							n->agg_within_group = true;
+						}
+						n->agg_filter = $3;
+						n->over = $4;
+						$$ = (Node *) n;
+					}
 				}
 			| func_expr_common_subexpr
 				{ $$ = $1; }
@@ -15219,7 +15333,12 @@ func_expr: func_application within_group_clause filter_clause over_clause
  * disambiguate the grammar (e.g. in CREATE INDEX).
  */
 func_expr_windowless:
-			func_application						{ $$ = $1; }
+			func_application
+				{
+					if (IsA($1, ColumnRef) || IsA($1, A_Indirection))
+						parser_yyerror("syntax error");
+					$$ = $1;
+				}
 			| func_expr_common_subexpr				{ $$ = $1; }
 		;
 
@@ -16165,6 +16284,27 @@ case_default:
 
 case_arg:	a_expr									{ $$ = $1; }
 			| /*EMPTY*/								{ $$ = NULL; }
+		;
+
+optsmallbrackets:
+			smallbrackets							{ $$ = $1; }
+			| /*EMPTY*/								{ $$ = NULL; }
+		;
+
+smallbrackets:
+			smallbracket							{ $$ = list_make1($1); }
+			| smallbrackets smallbracket			{ $$ = lappend($1, $2); }
+		;
+
+smallbracket:
+			'(' a_expr ')'
+				{
+					A_Indices *ai = makeNode(A_Indices);
+					ai->is_slice = false;
+					ai->lidx = NULL;
+					ai->uidx = $2;
+					$$ = (Node *) ai;
+				}
 		;
 
 columnref:	ColId
@@ -18635,3 +18775,39 @@ check_pkgname(List *pkgname, char *end_name, core_yyscan_t yyscanner)
 	}
 }
 
+/*
+ * Convert a(1)(2)(3) to a[1][2][3].
+ */
+static Node *
+makeNestedSmallBrackets(List *name, List *bracket1, List *sortclause, List *nestbracket,
+						int location, core_yyscan_t yyscanner)
+{
+	A_Indices *ai = makeNode(A_Indices);
+	char *column = NULL;
+	List *new_list = NULL;
+
+	/* Don't support collection type subscript is (1, 2) or have sort clause */
+	if (list_length(bracket1) > 1 || sortclause)
+		parser_yyerror("syntax error");
+
+	/* Some option don't support */
+	if (IsA(linitial(name), String))
+		column = strVal(linitial(name));
+	else
+		parser_yyerror("syntax error");
+
+	if (IsA(linitial(bracket1), NamedArgExpr))
+		parser_yyerror("syntax error");
+	else
+	{
+		/* Change bracket1 node type */
+		ai->is_slice = false;
+		ai->lidx = NULL;
+		ai->uidx = linitial(bracket1);
+	}
+
+	new_list = list_concat(list_delete_first(name), list_make1(ai));
+	new_list = list_concat(new_list, nestbracket);
+
+	return makeColumnRef(column, new_list, location, yyscanner);
+}

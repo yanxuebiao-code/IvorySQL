@@ -28,6 +28,7 @@
 #include "utils/array.h"
 #include "utils/arrayaccess.h"
 #include "utils/builtins.h"
+#include "utils/ctype.h"
 #include "utils/datum.h"
 #include "utils/fmgroids.h"
 #include "utils/lsyscache.h"
@@ -1848,6 +1849,11 @@ array_get_element(Datum arraydatum,
 			   *retptr;
 	bits8	   *arraynullsptr;
 
+	/*
+	 * Check for is deleted array element
+	 */
+	checkCtypeLenthIsValid(arraydatum, indx[0]);
+
 	if (arraytyplen > 0)
 	{
 		/*
@@ -1863,15 +1869,56 @@ array_get_element(Datum arraydatum,
 	}
 	else if (VARATT_IS_EXTERNAL_EXPANDED(DatumGetPointer(arraydatum)))
 	{
-		/* expanded array: let's do this in a separate function */
-		return array_get_element_expanded(arraydatum,
-										  nSubscripts,
-										  indx,
-										  arraytyplen,
-										  elmlen,
-										  elmbyval,
-										  elmalign,
-										  isNull);
+		ExpandedArrayHeader	   *eah;
+		Datum	   result;
+
+		eah = (ExpandedArrayHeader *) DatumGetEOHP(arraydatum);
+		if (eah->isctype)
+		{
+			result = array_get_element_expanded(arraydatum,
+												1,
+												indx,
+												arraytyplen,
+												eah->typlen,
+												eah->typbyval,
+												eah->typalign,
+												isNull);
+			nSubscripts--;
+			indx++;
+			while(nSubscripts-- && !*isNull)
+			{
+				TypeCacheEntry * typentry;
+
+				if (!result)
+					break;
+
+				/* the multidimensional collection type is a hard disk space data, not an extended array data */
+				typentry = lookup_type_cache(((ArrayType*)result)->elemtype, TYPECACHE_EQ_OPR_FINFO);
+				result = array_get_element(result,
+										   1,
+										   indx,
+										   arraytyplen,
+										   typentry->typlen,
+										   typentry->typbyval,
+										   typentry->typalign,
+										   isNull);
+				indx++;
+			}
+
+			return result;
+		}
+		else
+		{
+			/* expanded array: let's do this in a separate function */
+			return array_get_element_expanded(arraydatum,
+											  nSubscripts,
+											  indx,
+											  arraytyplen,
+											  elmlen,
+											  elmbyval,
+											  elmalign,
+											  isNull);
+		}
 	}
 	else
 	{
@@ -2241,6 +2288,20 @@ array_set_element(Datum arraydatum,
 				addedafter,
 				lenbefore,
 				lenafter;
+	ArrayType  *arraytemp = DatumGetArrayTypeP(arraydatum);
+	int		*ctypeflag = AGG_FLAGMAP(arraytemp);
+
+	/*
+	 * Check for is deleted array element.
+	 */
+	if (*ctypeflag == CTYPE_MARK)
+	{
+		if (ctype_alldata_deleted_check(arraydatum))
+			ereport(ERROR,
+					(errcode(ERRCODE_PROGRAM_LIMIT_EXCEEDED),
+					 errmsg("Subscript beyond count"),
+					 errdetail("A subscript was greater than the limit of a varray or non-positive for a varray or nested table. the varry was deleted")));
+	}
 
 	if (arraytyplen > 0)
 	{
@@ -3461,7 +3522,7 @@ construct_empty_expanded_array(Oid element_type,
 	ArrayType  *array = construct_empty_array(element_type);
 	Datum		d;
 
-	d = expand_array(PointerGetDatum(array), parentcontext, metacache);
+	d = expand_array(PointerGetDatum(array), parentcontext, metacache, -1);
 	pfree(array);
 	return (ExpandedArrayHeader *) DatumGetEOHP(d);
 }

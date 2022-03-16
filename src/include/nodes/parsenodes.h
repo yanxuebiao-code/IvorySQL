@@ -231,6 +231,8 @@ typedef struct TypeName
 	List	   *arrayBounds;	/* array bounds */
 	int			location;		/* token location, or -1 if unknown */
 	Oid			t_pkgoid;
+	bool		abst_type;		/* true: use collection type syntax to create type
+								   false: direct use abstract type */
 } TypeName;
 
 /*
@@ -434,6 +436,7 @@ typedef struct A_Indirection
 	NodeTag		type;
 	Node	   *arg;			/* the thing being selected from */
 	List	   *indirection;	/* subscripts and/or field names and/or * */
+	FuncCall   *func_args;		/* function args */
 } A_Indirection;
 
 /*
@@ -3154,6 +3157,7 @@ typedef struct CallStmt
 	FuncCall   *funccall;		/* from the parser */
 	FuncExpr   *funcexpr;		/* transformed call, with only input args */
 	List	   *outargs;		/* transformed output-argument expressions */
+	A_Indirection	   *typeexpr;
 } CallStmt;
 
 typedef struct CallContext

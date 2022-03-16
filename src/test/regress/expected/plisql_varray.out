@@ -1,0 +1,2740 @@
+--
+--Basic type correlation test: assignment, value, etc
+--
+create function test_varray_basic1() returns VOID as $$
+DECLARE
+ type newtype1 as varray(7) of int;
+ va newtype1;
+BEGIN
+ va = newtype1(111,222);
+ raise notice 'value= % ', va(2);
+end; $$ language plisql;
+select test_varray_basic1();
+NOTICE:  value= 222 
+ test_varray_basic1 
+--------------------
+ 
+(1 row)
+
+create function test_varray_basic2() returns VOID as $$
+DECLARE
+ TYPE new_int as varray(5) OF varchar(64) ;
+ va new_int;
+BEGIN
+ va(1) = '11';
+ va(2) = '222';
+ va(3) = '3333';
+ va(4) = '4';
+ raise notice '%', va(1);
+ raise notice '%', va(2);
+ raise notice '%', va(3);
+ raise notice '%', va(4);
+end; $$ language plisql;
+select test_varray_basic2();
+ERROR:  Reference to uninitialized collection
+DETAIL:  An element or member function of a nested table or varray was referenced (where an initialized collection is needed) without the collection having been initialized
+CONTEXT:  PL/hgSQL function test_varray_basic2() line 6 at assignment
+create function test_varray_basic3() returns VOID as $$
+DECLARE
+ type newtype1 as varray(7) of int;
+ aaaa newtype1;
+ bbbb newtype1;
+BEGIN
+ aaaa = newtype1(111,222);
+ bbbb = newtype1(333,444);
+ raise notice 'value= % ', aaaa;
+ raise notice 'value= % ', bbbb(2);
+end; $$ language plisql;
+select test_varray_basic3();
+NOTICE:  value= {111,222} 
+NOTICE:  value= 444 
+ test_varray_basic3 
+--------------------
+ 
+(1 row)
+
+create function test_varray_basic4() returns VOID as $$
+DECLARE
+ type newtype1 as varray(7) of int;
+ type newtype2 as varray(7) of text;
+ aaaa newtype1;
+ bbbb newtype2;
+BEGIN
+ aaaa = newtype1(111,222);
+ bbbb = newtype2('aaa', 'bbb');
+ raise notice 'value= % ', aaaa(2);
+ raise notice 'value= % ', bbbb(2);
+end; $$ language plisql;
+select test_varray_basic4();
+NOTICE:  value= 222 
+NOTICE:  value= bbb 
+ test_varray_basic4 
+--------------------
+ 
+(1 row)
+
+create function test_varray_basic5() returns VOID as $$
+DECLARE
+ type newtype1 as varray(7) of int;
+ type newtype2 as varray(7) of text;
+ aaaa1 newtype1;
+ aaaa2 newtype1;
+ bbbb1 newtype2;
+ bbbb2 newtype2;
+BEGIN
+ aaaa1 = newtype1(111,222);
+ aaaa2 = newtype1(333,444);
+ bbbb1 = newtype2('aaa', 'bbb');
+ bbbb2 = newtype2('ccc', 'ddd');
+ raise notice 'value= % ', aaaa1;
+ raise notice 'value= % ', aaaa2(2);
+ raise notice 'value= % ', bbbb1;
+ raise notice 'value= % ', bbbb2(2);
+end; $$ language plisql;
+select test_varray_basic5();
+NOTICE:  value= {111,222} 
+NOTICE:  value= 444 
+NOTICE:  value= {aaa,bbb} 
+NOTICE:  value= ddd 
+ test_varray_basic5 
+--------------------
+ 
+(1 row)
+
+create function test_varray_basic6() returns VOID as $$
+DECLARE
+ TYPE new_int1 as varray(5) OF int ;
+ TYPE new_text as varray(5) OF text ;
+ TYPE new_int2 as varray(5) OF int ;
+ a new_int1;
+ b new_text;
+ c new_int2;
+BEGIN
+ a = new_int1(11, 222, 3333, 4);
+ b = new_text('t11', '22b2', '33a33', '4');
+ c = new_int2(11, 222, 3333, 4);
+ raise notice '%', a(1);
+ raise notice '%', b(2);
+ raise notice '%', c(3);
+end; $$ language plisql;
+select test_varray_basic6();
+NOTICE:  11
+NOTICE:  22b2
+NOTICE:  3333
+ test_varray_basic6 
+--------------------
+ 
+(1 row)
+
+create function test_varray_basic7() returns VOID as $$
+DECLARE
+ TYPE new_text as varray(5) OF text ;
+ a new_text;
+BEGIN
+ a = new_text(11, 222, 3333, 4);
+ raise notice '%', a(1);
+end; $$ language plisql;
+select test_varray_basic7();
+ERROR:  failed to find conversion function from integer to text
+CONTEXT:  SQL statement "SELECT new_text(11, 222, 3333, 4)"
+PL/hgSQL function test_varray_basic7() line 6 at assignment
+create function test_varray_basic8() returns VOID as $$
+DECLARE
+ TYPE new_int as varray(5) OF int ;
+ a new_int;
+BEGIN
+ a = new_int(11, 222, 3333, 4);
+ raise notice '%', a(1);
+end; $$ language plisql;
+select test_varray_basic8();
+NOTICE:  11
+ test_varray_basic8 
+--------------------
+ 
+(1 row)
+
+create function test_varray_basic9() returns VOID as $$
+DECLARE
+ TYPE new_int as varray(5) OF int ;
+ a new_int;
+BEGIN
+ a = new_int('aa', 'bbb', '3333', 'ddd');
+ raise notice '%', a(1);
+end; $$ language plisql;
+select test_varray_basic9();
+ERROR:  invalid input syntax for type integer: "aa"
+LINE 1: SELECT new_int('aa', 'bbb', '3333', 'ddd')
+                       ^
+QUERY:  SELECT new_int('aa', 'bbb', '3333', 'ddd')
+CONTEXT:  PL/hgSQL function test_varray_basic9() line 6 at assignment
+create function test_varray_basic10() returns VOID as $$
+DECLARE
+ TYPE new_int as varray(5) OF int ;
+ a new_int := new_int(NULL, 0, 3333, 0);
+BEGIN
+ a(1) = 11;
+ a(2) = 222;
+ a(3) = 3333;
+ a(4) = 4;
+ raise notice '%', a(1);
+ raise notice '%', a(2);
+ raise notice '%', a(3);
+ raise notice '%', a(4);
+end; $$ language plisql;
+select test_varray_basic10();
+NOTICE:  11
+NOTICE:  222
+NOTICE:  3333
+NOTICE:  4
+ test_varray_basic10 
+---------------------
+ 
+(1 row)
+
+create function test_varray_basic11() returns VOID as $$
+DECLARE
+ TYPE new_text as varray(5) OF text ;
+ a new_text := new_text('aa', 'bbb', '3333', 'ddd');
+BEGIN
+ a(1) = 11;
+ a(2) = 222;
+ a(3) = 3333;
+ a(4) = 4;
+ raise notice '%', a(1);
+ raise notice '%', a(2);
+ raise notice '%', a(3);
+ raise notice '%', a(4);
+end; $$ language plisql;
+select test_varray_basic11();
+NOTICE:  11
+NOTICE:  222
+NOTICE:  3333
+NOTICE:  4
+ test_varray_basic11 
+---------------------
+ 
+(1 row)
+
+create function test_varray_basic12() returns VOID as $$
+DECLARE
+ TYPE new_int as varray(5) OF int ;
+ a new_int:= new_int(NULL, NULL, NULL, NULL);
+BEGIN
+ a(1) = 'a';
+ a(2) = 'bb';
+ a(3) = 'ccc';
+ a(4) = 'dddd';
+ raise notice '%', a(1);
+ raise notice '%', a(2);
+ raise notice '%', a(3);
+ raise notice '%', a(4);
+end; $$ language plisql;
+select test_varray_basic12();
+ERROR:  invalid input syntax for type integer: "a"
+CONTEXT:  PL/hgSQL function test_varray_basic12() line 6 at assignment
+create function test_varray_basic13() returns VOID as $$
+DECLARE
+ TYPE new_int as varray(5) OF int ;
+ a1 new_int;
+ a2 new_int;
+BEGIN
+ a1 = new_int(11, 222, 3333, 4);
+ a2 = a1;
+ raise notice '%', a2(1);
+ raise notice '%', a2;
+end; $$ language plisql;
+select test_varray_basic13();
+NOTICE:  11
+NOTICE:  {11,222,3333,4}
+ test_varray_basic13 
+---------------------
+ 
+(1 row)
+
+create function test_varray_basic14() returns VOID as $$
+DECLARE
+ TYPE new_int1 as varray(5) OF int ;
+ a1 new_int1;
+ TYPE new_int2 as varray(5) OF int ;
+ b1 new_int2;
+BEGIN
+ a1 = new_int1(11, 222, 3333, 4);
+ b1 = a1;
+ raise notice '%', b1(1);
+ raise notice '%', b1;
+end; $$ language plisql;
+select test_varray_basic14();
+ERROR:  expression is of wrong type, [new_int1] to [new_int2]
+CONTEXT:  PL/hgSQL function test_varray_basic14() line 9 at assignment
+create function test_varray_basic15() returns VOID as $$
+DECLARE
+ TYPE new_int1 as varray(5) OF int ;
+ a1 new_int1;
+ b1 int array;
+BEGIN
+ a1 = new_int1(11, 222, 3333, 4);
+ b1 = a1;
+ raise notice '%', b1[1];
+ raise notice '%', b1;
+end; $$ language plisql;
+select test_varray_basic15();
+NOTICE:  11
+NOTICE:  {11,222,3333,4}
+ test_varray_basic15 
+---------------------
+ 
+(1 row)
+
+create function test_varray_basic16() returns VOID as $$
+DECLARE
+ TYPE new_int1 as varray(5) OF int ;
+ a new_int1;
+ b int;
+ c text;
+BEGIN
+ a = new_int1(11, 222, 3333, 4);
+ b = a(2);
+ c = a(2);
+ raise notice '%', a(1);
+ raise notice '%', b;
+ raise notice '%', c;
+end; $$ language plisql;
+select test_varray_basic16();
+NOTICE:  11
+NOTICE:  222
+NOTICE:  222
+ test_varray_basic16 
+---------------------
+ 
+(1 row)
+
+create function test_varray_basic17() returns VOID as $$
+DECLARE
+ TYPE new_int1 as varray(5) OF int ;
+ a new_int1;
+ b int;
+ c text;
+BEGIN
+ a = new_int1(11, 222, 3333, 4);
+ b = a(2);
+ c = a(2);
+ raise notice '%', a(1);
+ raise notice '%', b;
+ raise notice '%', c;
+end; $$ language plisql;
+select test_varray_basic17();
+NOTICE:  11
+NOTICE:  222
+NOTICE:  222
+ test_varray_basic17 
+---------------------
+ 
+(1 row)
+
+create function test_varray_basic18() returns VOID as $$
+DECLARE
+ TYPE new_int1 as varray(5) OF int ;
+ a new_int1;
+ b int;
+ TYPE new_text as varray(5) OF text ;
+ c int;
+ d new_text;
+BEGIN
+ a = new_int1(11, 222, 3333, 4);
+ b = a(2);
+ d = new_text('t11', '22b2', '33a33', '4');
+ c = d(1);
+ raise notice '%', a(1);
+ raise notice '%', b;
+ raise notice '%', c;
+ raise notice '%', d;
+end; $$ language plisql;
+select test_varray_basic18();
+ERROR:  invalid input syntax for type integer: "t11"
+CONTEXT:  PL/hgSQL function test_varray_basic18() line 13 at assignment
+create function test_varray_basic19() returns VOID as $$
+DECLARE
+ TYPE new_int1 as varray(5) OF int ;
+ a new_int1;
+ b int;
+ TYPE new_text as varray(5) OF text ;
+ c int array;
+ d new_text;
+BEGIN
+ a = new_int1(11, 222, 3333, 4);
+ b = a(2);
+ d = new_text('t11', '22b2', '33a33', '4');
+ c[1] = a(2);
+ raise notice '%', a(1);
+ raise notice '%', b;
+ raise notice '%', d(3);
+ raise notice '%', c[1];
+end; $$ language plisql;
+select test_varray_basic19();
+NOTICE:  11
+NOTICE:  222
+NOTICE:  33a33
+NOTICE:  222
+ test_varray_basic19 
+---------------------
+ 
+(1 row)
+
+create function test_varray_basic20() returns VOID as $$
+DECLARE
+ TYPE new_int1 as varray(5) OF int ;
+ a new_int1;
+ b int;
+ TYPE new_text as varray(5) OF text ;
+ c int array;
+ d new_text;
+BEGIN
+ a = new_int1(11, 222, 3333, 4);
+ b = a(2);
+ d = new_text('t11', '22b2', '33a33', '4');
+ c[1] = a(2);
+ raise notice '%', a(1);
+ raise notice '%', b;
+ raise notice '%', d(3);
+ raise notice '%', c[1];
+end; $$ language plisql;
+select test_varray_basic20();
+NOTICE:  11
+NOTICE:  222
+NOTICE:  33a33
+NOTICE:  222
+ test_varray_basic20 
+---------------------
+ 
+(1 row)
+
+create function test_varray_basic21() returns VOID as $$
+DECLARE
+ TYPE new_int1 is varray(5) OF int ;
+ TYPE new_text is varray(5) OF text ;
+ TYPE new_int2 is varray(5) OF int ;
+ a new_int1;
+ b new_text;
+ c new_int2;
+BEGIN
+ a = new_int1(11, 222, 3333, 4);
+ b = new_text('t11', '22b2', '33a33', '4');
+ c = new_int2(11, 222, 3333, 4);
+ raise notice '%', a(1);
+ raise notice '%', b(2);
+ raise notice '%', c(3);
+end; $$ language plisql;
+select test_varray_basic21();
+NOTICE:  11
+NOTICE:  22b2
+NOTICE:  3333
+ test_varray_basic21 
+---------------------
+ 
+(1 row)
+
+create function test_varray_basic22() returns VOID as $$
+DECLARE
+ TYPE new_text as varray(5) OF text ;
+ a new_text;
+BEGIN
+ a = new_text(1, 22, 333, 4444, 55555, 666666);
+ raise notice '%', a(1);
+end; $$ language plisql;
+select test_varray_basic22();
+ERROR:  failed to find conversion function from integer to text
+CONTEXT:  SQL statement "SELECT new_text(1, 22, 333, 4444, 55555, 666666)"
+PL/hgSQL function test_varray_basic22() line 6 at assignment
+create function test_varray_basic23() returns VOID as $$
+DECLARE
+ TYPE new_text as varray(5) OF text ;
+ a new_text := new_text('t11', '22b2', '33a33', '4','55');
+BEGIN
+ a(6) = 666666;
+ raise notice '%', a(6);
+end; $$ language plisql;
+select test_varray_basic23();
+ERROR:  Subscript(6) outside of limit (5)
+DETAIL:  A subscript was greater than the limit of a varray or non-positive for a varray or nested table.
+CONTEXT:  PL/hgSQL function test_varray_basic23() line 6 at assignment
+create function test_varray_basic24() returns VOID as $$
+DECLARE
+ TYPE new_text as varray(5) OF text ;
+ a new_text:= new_text('t11', '22b2', '33a33', '4','55');
+BEGIN
+ a(0) = 11;
+ raise notice '%', a(0);
+end; $$ language plisql;
+select test_varray_basic24();
+ERROR:  Subscript(0) outside of limit
+DETAIL:  An in-limit subscript was greater than the count of a varray or too large for a nested table.
+CONTEXT:  PL/hgSQL function test_varray_basic24() line 6 at assignment
+create function test_varray_basic25() returns VOID as $$
+DECLARE
+ TYPE new_text as varray(5) OF text ;
+ a new_text = new_text('t11', '22b2', '3a33', '4','55');
+BEGIN
+ a(-1) = 11;
+ raise notice '%', a(-1);
+end; $$ language plisql;
+select test_varray_basic25();
+ERROR:  Subscript(-1) outside of limit (5)
+DETAIL:  An in-limit subscript was greater than the count of a varray or too large for a nested table.
+CONTEXT:  PL/hgSQL function test_varray_basic25() line 6 at assignment
+create function test_varray_basic26() returns VOID as $$
+DECLARE
+ TYPE new_text as varray(5) OF text ;
+ a new_text;
+BEGIN
+ a(-1) = 11;
+ raise notice '%', a(-1);
+end; $$ language plisql;
+select test_varray_basic26();
+ERROR:  Reference to uninitialized collection
+DETAIL:  An element or member function of a nested table or varray was referenced (where an initialized collection is needed) without the collection having been initialized
+CONTEXT:  PL/hgSQL function test_varray_basic26() line 6 at assignment
+--
+--Basic type operation and function testing: execution, modification, etc
+--
+create function test_varray_func_basic1() returns VOID as $$
+DECLARE
+ TYPE va_type as varray(10) OF text;
+ va va_type:= va_type('11', '22', '33', '44', '55', '66');
+ BEGIN
+ va.delete(); 
+ raise notice '%', va;
+end; $$ language plisql;
+select test_varray_func_basic1();
+ERROR:  Subscript beyond count
+DETAIL:  A subscript was greater than the limit of a varray or non-positive for a varray or nested table. the varry was deleted
+CONTEXT:  PL/hgSQL function test_varray_func_basic1() line 7 at RAISE
+create function test_varray_func_basic2() returns VOID as $$
+DECLARE
+ TYPE va_type as varray(10) OF text;
+ va va_type:= va_type('11', '22', '33', '44', '55', '66');
+BEGIN
+ va.DELETE(); 
+ raise notice '%', va(2);
+end; $$ language plisql;
+select test_varray_func_basic2();
+ERROR:  Subscript beyond count
+DETAIL:  A subscript was greater than the limit of a varray or non-positive for a varray or nested table. the varry was deleted
+CONTEXT:  PL/hgSQL function test_varray_func_basic2() line 7 at RAISE
+create function test_varray_func_basic3() returns VOID as $$
+DECLARE
+ TYPE va_type as varray(10) OF text;
+ va va_type:= va_type('11', '22', '33', '44', '55', '66');
+BEGIN
+ va.DELETE(); 
+ va(2) = 'bb';
+ raise notice '%', va(2);
+end; $$ language plisql;
+select test_varray_func_basic3();
+ERROR:  Subscript beyond count
+DETAIL:  A subscript was greater than the limit of a varray or non-positive for a varray or nested table. the varry was deleted
+CONTEXT:  PL/hgSQL function test_varray_func_basic3() line 7 at assignment
+create function test_varray_func_basic4() returns VOID as $$
+DECLARE
+ TYPE va_type as varray(10) OF text;
+ va va_type:= va_type('11', '22', '33', '44', '55', '66');
+BEGIN
+ raise notice '%',(va);
+ va.trim();
+ raise notice '%',(va);
+ va.TRIM(4);
+ raise notice '%',(va);
+end; $$ language plisql;
+select test_varray_func_basic4();
+NOTICE:  {11,22,33,44,55,66}
+NOTICE:  {11,22,33,44,55}
+NOTICE:  {11}
+ test_varray_func_basic4 
+-------------------------
+ 
+(1 row)
+
+create function test_varray_func_basic5() returns VOID as $$
+DECLARE
+ TYPE va_type as varray(10) OF text;
+ va va_type:= va_type('11', '22', '33', '44', '55', '66', '77');
+BEGIN
+ raise notice '%',(va);
+ va(3) = '333';
+ va(4) = '444';
+ va(7) = '777';
+ raise notice '%',(va);
+ va.trim(9);
+ raise notice '%',(va);
+end; $$ language plisql;
+select test_varray_func_basic5();
+NOTICE:  {11,22,33,44,55,66,77}
+NOTICE:  {11,22,333,444,55,66,777}
+ERROR:  Subscript beyond count
+DETAIL:  An in-limit subscript was greater than the count of a varray or too large for a nested table.
+CONTEXT:  PL/hgSQL function collection_trim(varray,integer) line 3 at assignment
+SQL statement "CALL va.trim(9)"
+PL/hgSQL function test_varray_func_basic5() line 11 at CALL
+create function test_varray_func_basic6() returns VOID as $$
+DECLARE
+ TYPE va_type as varray(10) OF text;
+ va va_type:= va_type('11', '22', '33');
+BEGIN
+ raise notice '%',(va);
+ va.extend(); 
+ raise notice '%',(va);
+ va.extend(2); 
+ raise notice '%',(va);
+ va.extend(1,1); 
+ raise notice '%',(va);
+ va.extend(3,3); 
+ raise notice '%',(va);
+end; $$ language plisql;
+select test_varray_func_basic6();
+NOTICE:  {11,22,33}
+NOTICE:  {11,22,33,NULL}
+NOTICE:  {11,22,33,NULL,NULL,NULL}
+NOTICE:  {11,22,33,NULL,NULL,NULL,11}
+NOTICE:  {11,22,33,NULL,NULL,NULL,11,33,33,33}
+ test_varray_func_basic6 
+-------------------------
+ 
+(1 row)
+
+create function test_varray_func_basic7() returns VOID as $$
+DECLARE
+ TYPE va_type as varray(10) OF text;
+ va va_type:= va_type('11', '22', '33');
+BEGIN
+ raise notice '%',(va);
+ va.extend(); 
+ raise notice '%',(va);
+ va.extend(2); 
+ raise notice '%',(va);
+ va.extend(1,1); 
+ raise notice '%',(va);
+ va.extend(1,3); 
+ raise notice '%',(va);
+ va.extend(3,3); 
+ raise notice '%',(va);
+end; $$ language plisql;
+select test_varray_func_basic7();
+NOTICE:  {11,22,33}
+NOTICE:  {11,22,33,NULL}
+NOTICE:  {11,22,33,NULL,NULL,NULL}
+NOTICE:  {11,22,33,NULL,NULL,NULL,11}
+NOTICE:  {11,22,33,NULL,NULL,NULL,11,33}
+ERROR:  Subscript(11) outside of limit(10)
+DETAIL:  A subscript was greater than the limit of a varray or non-positive for a varray or nested table. Check the program logic and increase the varray limit if necessary.
+CONTEXT:  PL/hgSQL function collection_extend(varray,integer,integer) line 3 at assignment
+SQL statement "CALL va.extend(3,3)"
+PL/hgSQL function test_varray_func_basic7() line 15 at CALL
+create function test_varray_func_basic8() returns VOID as $$
+DECLARE
+ TYPE va_type as varray(10) OF text;
+ va va_type:= va_type('11', '22', '33');
+ va1 va_type;
+ va2 va_type;
+BEGIN
+ va.extend(); 
+ va1=va;
+ va2 = va1;
+ va(4) = '44';
+ va1(4) = 'ff';
+ va2(4) = 'gg';
+ raise notice '%',(va);
+ raise notice '%',(va1);
+ raise notice '%',(va2);
+end; $$ language plisql;
+select test_varray_func_basic8();
+NOTICE:  {11,22,33,44}
+NOTICE:  {11,22,33,ff}
+NOTICE:  {11,22,33,gg}
+ test_varray_func_basic8 
+-------------------------
+ 
+(1 row)
+
+create function test_varray_func_basic9() returns VOID as $$
+DECLARE
+ TYPE va_type as varray(15) OF text;
+ va va_type:= va_type('11', '22', '33', '44', '55', '66');
+BEGIN
+ raise notice '%',(va);
+ va.extend(); 
+ raise notice '%',(va);
+ va.extend(2); 
+ raise notice '%',(va);
+ va.extend(6,1); 
+ raise notice '%',(va);
+ va.extend(8); 
+ raise notice '%',(va);
+end; $$ language plisql;
+select test_varray_func_basic9();
+NOTICE:  {11,22,33,44,55,66}
+NOTICE:  {11,22,33,44,55,66,NULL}
+NOTICE:  {11,22,33,44,55,66,NULL,NULL,NULL}
+NOTICE:  {11,22,33,44,55,66,NULL,NULL,NULL,11,11,11,11,11,11}
+ERROR:  Subscript(23) outside of limit(15)
+DETAIL:  A subscript was greater than the limit of a varray or non-positive for a varray or nested table. Check the program logic and increase the varray limit if necessary.
+CONTEXT:  PL/hgSQL function collection_extend(varray,integer) line 3 at assignment
+SQL statement "CALL va.extend(8)"
+PL/hgSQL function test_varray_func_basic9() line 13 at CALL
+create function test_varray_func_basic10() returns VOID as $$
+DECLARE
+ TYPE va_type as varray(10) OF text;
+ va va_type:= va_type('11', '22', '33', '44', '55', '66');
+ aa text ;
+ isexists bool;
+BEGIN
+ FOR i IN 1..3 LOOP
+ isexists = va.exists(i);
+ IF isexists THEN
+ raise notice 'va(%) = %',i,va(i);
+ ELSE
+ raise notice 'va(%) does not exist',i;
+ END IF;
+ END LOOP;
+end; $$ language plisql;
+select test_varray_func_basic10();
+NOTICE:  va(1) = 11
+NOTICE:  va(2) = 22
+NOTICE:  va(3) = 33
+ test_varray_func_basic10 
+--------------------------
+ 
+(1 row)
+
+create function test_varray_func_basic11() returns VOID as $$
+DECLARE
+ TYPE va_type as varray(10) OF text;
+ va1 va_type:= va_type('11', '22', '33', '44', '55', '66');
+ va2 va_type:=va_type('11', '22', '33', '44', '55', '66');
+ aa text ;
+ isexists bool;
+BEGIN
+ raise notice 'va1.first = %',va1.first();
+ raise notice 'va1.last = %',va1.last();
+ va2.extend();
+ va2(3) = '333';
+ va2(4) = '444';
+ va2(7) = '777';
+ raise notice 'va2.first = %',va2.first();
+ raise notice 'va2.last = %',va2.last();
+end; $$ language plisql;
+select test_varray_func_basic12();
+ERROR:  function test_varray_func_basic12() does not exist
+LINE 1: select test_varray_func_basic12();
+               ^
+HINT:  No function matches the given name and argument types. You might need to add explicit type casts.
+create function test_varray_func_basic13() returns VOID as $$
+DECLARE
+ TYPE va_type as varray(10) OF text;
+ va va_type:= va_type('11', '22', '33');
+ num text;
+BEGIN
+ va.EXTEND(4);
+ raise notice 'va = %',va;
+ raise notice 'va.last = %',va.last();
+ raise notice 'va.count = %',va.count();
+ va.trim(3);
+ raise notice 'va = %',va;
+ raise notice 'va.last = %',va.last();
+ raise notice 'va.count = %',va.count();
+end; $$ language plisql;
+select test_varray_func_basic13();
+NOTICE:  va = {11,22,33,NULL,NULL,NULL,NULL}
+NOTICE:  va.last = 7
+NOTICE:  va.count = 7
+NOTICE:  va = {11,22,33,NULL}
+NOTICE:  va.last = 4
+NOTICE:  va.count = 4
+ test_varray_func_basic13 
+--------------------------
+ 
+(1 row)
+
+create function test_varray_func_basic14() returns VOID as $$
+DECLARE
+ TYPE va_type as varray(10) OF text;
+ va2 va_type:= va_type('11', '22', '33','44','55','66','77');
+ aa text ;
+ isexists bool;
+BEGIN
+ va2(3) = '333';
+ va2(4) = '444';
+ va2(7) = '777';
+ raise notice 'va2.last = %',va2.last();
+ raise notice 'va2.count = %',va2.count();
+end; $$ language plisql;
+select test_varray_func_basic14();
+NOTICE:  va2.last = 7
+NOTICE:  va2.count = 7
+ test_varray_func_basic14 
+--------------------------
+ 
+(1 row)
+
+create function test_varray_func_basic15() returns VOID as $$
+DECLARE
+ TYPE va_type as varray(10) OF text;
+ va va_type:= va_type('11', '22', '33');
+ num text;
+BEGIN
+ raise notice 'va.COUNT = %',va.COUNT();
+ raise notice 'va.LIMIT = %',va.limit();
+end; $$ language plisql;
+select test_varray_func_basic15();
+NOTICE:  va.COUNT = 3
+NOTICE:  va.LIMIT = 10
+ test_varray_func_basic15 
+--------------------------
+ 
+(1 row)
+
+create function test_varray_func_basic16() returns VOID as $$
+DECLARE
+ TYPE va_type IS VARRAY(10) OF int;
+ va va_type:= va_type('11', '22', '33', '44');
+BEGIN
+ va(1) := 10;
+ va(2) := 20;
+ va(3) := 30;
+ va(4) := 40;
+ raise notice 'va.prior(3) = %',va.prior (3);
+ raise notice 'va.next(3) = %',va.next (3);
+ raise notice 'va.prior(3400) = %',va.prior (3400);
+ raise notice 'va.next(3400) = %',va.next (3400);
+end; $$ language plisql;
+select test_varray_func_basic16();
+NOTICE:  va.prior(3) = 2
+NOTICE:  va.next(3) = 4
+NOTICE:  va.prior(3400) = 4
+NOTICE:  va.next(3400) = <NULL>
+ test_varray_func_basic16 
+--------------------------
+ 
+(1 row)
+
+--
+--Basic type operation and function test: joint test, test if deleted after deletion is normal return----------------------------------------------------
+--
+create function test_varray_func_err1_1() returns VOID as $$
+DECLARE
+ TYPE va_type as varray(10) OF text;
+ va va_type:= va_type('11', '22', '33', '44', '55', '66');
+BEGIN
+ va.DELETE(); 
+ va = va_type('aa', 'bb');
+ raise notice '%', va(2);
+end; $$ language plisql;
+select test_varray_func_err1_1();
+NOTICE:  bb
+ test_varray_func_err1_1 
+-------------------------
+ 
+(1 row)
+
+create function test_varray_func_err1_2() returns VOID as $$
+DECLARE
+ TYPE va_type as varray(10) OF text;
+ va va_type ;
+BEGIN
+ va(3) = '333';
+ va(4) = '444';
+ va.delete();
+ raise notice '%', va(3);
+end; $$ language plisql;
+select test_varray_func_err1_2();
+ERROR:  Reference to uninitialized collection
+DETAIL:  An element or member function of a nested table or varray was referenced (where an initialized collection is needed) without the collection having been initialized
+CONTEXT:  PL/hgSQL function test_varray_func_err1_2() line 6 at assignment
+create function test_varray_func_err1_3() returns VOID as $$
+DECLARE
+ TYPE va_type as varray(10) OF text;
+ va va_type:= va_type('11', '22');
+BEGIN
+ va(3) = '333';
+ va(4) = '444';
+ raise notice '%', va(4);
+end; $$ language plisql;
+select test_varray_func_err1_3();
+ERROR:  Subscript(3) outside of limit (2)
+DETAIL:  An in-limit subscript was greater than the count of a varray or too large for a nested table.
+CONTEXT:  PL/hgSQL function test_varray_func_err1_3() line 6 at assignment
+create function test_varray_func_err1_4() returns VOID as $$
+DECLARE
+ TYPE va_type as varray(10) OF text;
+ va va_type:= va_type('11', '22', '33', '44', '55', '66');
+BEGIN
+ raise notice '%',(va);
+ va.delete();
+ va.TRIM(4);
+ raise notice '%',(va);
+end; $$ language plisql;
+select test_varray_func_err1_4();
+NOTICE:  {11,22,33,44,55,66}
+ERROR:  Subscript beyond count
+DETAIL:  A subscript was greater than the limit of a varray or non-positive for a varray or nested table. the varry was deleted
+CONTEXT:  PL/hgSQL function collection_trim(varray,integer) line 3 at assignment
+SQL statement "CALL va.TRIM(4)"
+PL/hgSQL function test_varray_func_err1_4() line 8 at CALL
+create function test_varray_func_err1_5() returns VOID as $$
+DECLARE
+ TYPE va_type as varray(10) OF text;
+ va va_type:= va_type('11', '22', '33', '44', '55', '66');
+BEGIN
+ raise notice '%',(va);
+ va.delete();
+ va.EXTEND(2,1); 
+ raise notice '%',(va);
+end; $$ language plisql;
+create function test_varray_func_err1_5() returns VOID as $$
+DECLARE
+ TYPE va_type as varray(10) OF text;
+ va va_type:= va_type('11', '22', '33', '44', '55', '66');
+BEGIN
+ raise notice '%',(va);
+ va.delete();
+ va.EXTEND(3); 
+ raise notice '%',(va);
+end; $$ language plisql;
+ERROR:  function "test_varray_func_err1_5" already exists with same argument types
+select test_varray_func_err1_5();
+NOTICE:  {11,22,33,44,55,66}
+ERROR:  Subscript beyond count
+DETAIL:  A subscript was greater than the limit of a varray or non-positive for a varray or nested table. the varry was deleted
+CONTEXT:  PL/hgSQL function collection_extend(varray,integer,integer) line 3 at assignment
+SQL statement "CALL va.EXTEND(2,1)"
+PL/hgSQL function test_varray_func_err1_5() line 8 at CALL
+create function test_varray_func_err1_6() returns VOID as $$
+DECLARE
+ TYPE va_type as varray(10) OF text;
+ va va_type:= va_type('11', '22', '33', '44', '55', '66');
+BEGIN
+ raise notice '%',(va);
+ va.delete();
+ va.EXTEND(3); 
+ va.extend(2);
+ va(4) = 'aa';
+ raise notice '%',(va);
+end; $$ language plisql;
+select test_varray_func_err1_6();
+NOTICE:  {11,22,33,44,55,66}
+NOTICE:  {NULL,NULL,NULL,aa,NULL}
+ test_varray_func_err1_6 
+-------------------------
+ 
+(1 row)
+
+create function test_varray_func_err1_7() returns VOID as $$
+DECLARE
+ TYPE va_type as varray(10) OF text;
+ va va_type:= va_type('11', '22', '33', '44', '55', '66');
+BEGIN
+ raise notice '%',(va);
+ va.delete();
+ va.EXTEND(3); 
+ va(2) = 'aa';
+ raise notice '%',(va);
+end; $$ language plisql;
+select test_varray_func_err1_7();
+NOTICE:  {11,22,33,44,55,66}
+NOTICE:  {NULL,aa,NULL}
+ test_varray_func_err1_7 
+-------------------------
+ 
+(1 row)
+
+create function test_varray_func_err1_8() returns VOID as $$
+DECLARE
+ TYPE va_type as varray(10) OF text;
+ va va_type:= va_type('11', '22', '33', '44', '55', '66');
+ isexists bool;
+BEGIN
+ FOR i IN 1..3 LOOP
+ isexists = va.exists(i);
+ IF isexists THEN
+ raise notice 'va(%) = %',i,va(i);
+ ELSE
+ raise notice 'va(%) does not exist',i;
+ END IF;
+ END LOOP;
+ va.delete();
+ FOR i IN 1..3 LOOP
+ isexists = va.exists(i);
+ IF isexists THEN
+ raise notice 'va(%) = %',i,va(i);
+ ELSE
+ raise notice 'va(%) does not exist',i;
+ END IF;
+ END LOOP;
+end; $$ language plisql;
+select test_varray_func_err1_8();
+NOTICE:  va(1) = 11
+NOTICE:  va(2) = 22
+NOTICE:  va(3) = 33
+NOTICE:  va(1) does not exist
+NOTICE:  va(2) does not exist
+NOTICE:  va(3) does not exist
+ test_varray_func_err1_8 
+-------------------------
+ 
+(1 row)
+
+create function test_varray_func_err1_9() returns VOID as $$
+DECLARE
+ TYPE va_type as varray(10) OF text;
+ va va_type:= va_type('11', '22', '33', '44', '55', '66','77');
+BEGIN
+ va(3) = '333';
+ va(4) = '444';
+ va(7) = '777';
+ raise notice 'va.first = %',va.first();
+ raise notice 'va.last = %',va.last();
+ va.delete();
+ raise notice 'va.first = %',va.first();
+ raise notice 'va.last = %',va.last();
+end; $$ language plisql;
+select test_varray_func_err1_9();
+NOTICE:  va.first = 1
+NOTICE:  va.last = 7
+NOTICE:  va.first = <NULL>
+NOTICE:  va.last = <NULL>
+ test_varray_func_err1_9 
+-------------------------
+ 
+(1 row)
+
+create function test_varray_func_err1_10() returns VOID as $$
+DECLARE
+ TYPE va_type as varray(10) OF text;
+ va va_type:= va_type('11', '22', '33', '44', '55', '66');
+BEGIN
+ raise notice 'va.first = %',va.first();
+ raise notice 'va.last = %',va.last();
+ va.delete();
+ raise notice 'va.first = %',va.first();
+ raise notice 'va.last = %',va.last();
+end; $$ language plisql;
+select test_varray_func_err1_10();
+NOTICE:  va.first = 1
+NOTICE:  va.last = 6
+NOTICE:  va.first = <NULL>
+NOTICE:  va.last = <NULL>
+ test_varray_func_err1_10 
+--------------------------
+ 
+(1 row)
+
+create function test_varray_func_err1_11() returns VOID as $$
+DECLARE
+ TYPE va_type as varray(10) OF text;
+ va va_type:= va_type('11', '22', '33');
+BEGIN
+ va.EXTEND(4);
+ raise notice 'va = %',va;
+ raise notice 'va.last = %',va.last();
+ raise notice 'va.count = %',va.count();
+ va.trim(3);
+ raise notice 'va = %',va;
+ raise notice 'va.last = %',va.last();
+ raise notice 'va.count = %',va.count();
+ va.delete();
+ raise notice 'va.last = %',va.last();
+ raise notice 'va.count = %',va.count();
+end; $$ language plisql;
+select test_varray_func_err1_11();
+NOTICE:  va = {11,22,33,NULL,NULL,NULL,NULL}
+NOTICE:  va.last = 7
+NOTICE:  va.count = 7
+NOTICE:  va = {11,22,33,NULL}
+NOTICE:  va.last = 4
+NOTICE:  va.count = 4
+NOTICE:  va.last = <NULL>
+NOTICE:  va.count = 0
+ test_varray_func_err1_11 
+--------------------------
+ 
+(1 row)
+
+create function test_varray_func_err1_12() returns VOID as $$
+DECLARE
+ TYPE va_type as varray(10) OF text;
+ va va_type:= va_type('11', '22', '33');
+ num text;
+BEGIN
+ va.delete();
+ raise notice 'va.COUNT = %',va.COUNT();
+ raise notice 'va.LIMIT = %',va.limit();
+end; $$ language plisql;
+select test_varray_func_err1_12();
+NOTICE:  va.COUNT = 0
+NOTICE:  va.LIMIT = 10
+ test_varray_func_err1_12 
+--------------------------
+ 
+(1 row)
+
+create function test_varray_func_err1_13() returns VOID as $$
+DECLARE
+ TYPE va_type IS VARRAY(10) OF int;
+ va va_type:= va_type('11', '22', '33', '44', '55', '66');
+BEGIN
+ va(1) := 10;
+ va(2) := 20;
+ va(3) := 30;
+ va(4) := 40;
+ raise notice 'va.prior(3) = %',va.prior (3);
+ raise notice 'va.next(3) = %',va.next (3);
+ raise notice 'va.prior(3400) = %',va.prior (3400);
+ raise notice 'va.next(3400) = %',va.next (3400);
+ va.delete(); 
+ raise notice 'va.prior(3) = %',va.prior (3);
+ raise notice 'va.next(3) = %',va.next (3);
+ raise notice 'va.prior(3400) = %',va.prior (3400);
+ raise notice 'va.next(3400) = %',va.next (3400);
+end; $$ language plisql;
+select test_varray_func_err1_13();
+NOTICE:  va.prior(3) = 2
+NOTICE:  va.next(3) = 4
+NOTICE:  va.prior(3400) = 6
+NOTICE:  va.next(3400) = <NULL>
+NOTICE:  va.prior(3) = <NULL>
+NOTICE:  va.next(3) = <NULL>
+NOTICE:  va.prior(3400) = <NULL>
+NOTICE:  va.next(3400) = <NULL>
+ test_varray_func_err1_13 
+--------------------------
+ 
+(1 row)
+
+create function test_varray_func_err1_14() returns VOID as $$
+DECLARE
+ TYPE va_type IS VARRAY(10) OF int;
+ va va_type:= va_type('11', '22', '33', '44');
+BEGIN
+ raise notice 'va.prior(1) = %',va.prior (1);
+ raise notice 'va.next(1) = %',va.next (1);
+ raise notice 'va.prior(3) = %',va.prior (3);
+ raise notice 'va.next(3) = %',va.next (3);
+ raise notice 'va.prior(3400) = %',va.prior (3400);
+ raise notice 'va.next(3400) = %',va.next (3400);
+ va.delete(); 
+ raise notice 'va.prior(3) = %',va.prior (3);
+ raise notice 'va.next(3) = %',va.next (3);
+ raise notice 'va.prior(3400) = %',va.prior (3400);
+ raise notice 'va.next(3400) = %',va.next (3400);
+end; $$ language plisql;
+select test_varray_func_err1_14();
+NOTICE:  va.prior(1) = <NULL>
+NOTICE:  va.next(1) = 2
+NOTICE:  va.prior(3) = 2
+NOTICE:  va.next(3) = 4
+NOTICE:  va.prior(3400) = 4
+NOTICE:  va.next(3400) = <NULL>
+NOTICE:  va.prior(3) = <NULL>
+NOTICE:  va.next(3) = <NULL>
+NOTICE:  va.prior(3400) = <NULL>
+NOTICE:  va.next(3400) = <NULL>
+ test_varray_func_err1_14 
+--------------------------
+ 
+(1 row)
+
+--
+--Basic type operation and function test: test the empty array call function to execute correctly
+--
+create function test_varray_func_err2_1() returns VOID as $$
+DECLARE
+ TYPE va_type as varray(10) OF text;
+ va va_type;
+BEGIN
+ va.DELETE(); 
+ raise notice '%', va(2);
+end; $$ language plisql; 
+select test_varray_func_err2_1();
+ERROR:  Reference to uninitialized collection
+DETAIL:  An element or member function of a nested table or varray was referenced ,without the collection having been initialized
+CONTEXT:  PL/hgSQL function collection_delete(varray) line 3 at assignment
+SQL statement "CALL va.DELETE()"
+PL/hgSQL function test_varray_func_err2_1() line 6 at CALL
+create function test_varray_func_err2_2() returns VOID as $$
+DECLARE
+ TYPE va_type as varray(10) OF text;
+ va va_type;
+BEGIN
+ va.TRIM(4);
+ raise notice '%',(va);
+end; $$ language plisql; 
+select test_varray_func_err2_2();
+ERROR:  Reference to uninitialized collection
+DETAIL:  An element or member function of a nested table or varray was referenced ,without the collection having been initialized
+CONTEXT:  PL/hgSQL function collection_trim(varray,integer) line 3 at assignment
+SQL statement "CALL va.TRIM(4)"
+PL/hgSQL function test_varray_func_err2_2() line 6 at CALL
+create function test_varray_func_err2_3() returns VOID as $$
+DECLARE
+ TYPE va_type as varray(10) OF text;
+ va va_type;
+BEGIN
+ va.EXTEND(); 
+ raise notice '%',(va);
+end; $$ language plisql; 
+select test_varray_func_err2_3();
+ERROR:  Reference to uninitialized collection
+DETAIL:  An element or member function of a nested table or varray was referenced ,without the collection having been initialized
+CONTEXT:  PL/hgSQL function collection_extend(varray) line 3 at assignment
+SQL statement "CALL va.EXTEND()"
+PL/hgSQL function test_varray_func_err2_3() line 6 at CALL
+create function test_varray_func_err2_4() returns VOID as $$
+DECLARE
+ TYPE va_type as varray(10) OF text;
+ va va_type;
+BEGIN
+ va.EXTEND(2,1); 
+ raise notice '%',(va);
+end; $$ language plisql; 
+select test_varray_func_err2_4();
+ERROR:  Reference to uninitialized collection
+DETAIL:  An element or member function of a nested table or varray was referenced ,without the collection having been initialized
+CONTEXT:  PL/hgSQL function collection_extend(varray,integer,integer) line 3 at assignment
+SQL statement "CALL va.EXTEND(2,1)"
+PL/hgSQL function test_varray_func_err2_4() line 6 at CALL
+create function test_varray_func_err2_5() returns VOID as $$
+DECLARE
+ TYPE va_type as varray(10) OF text;
+ va va_type;
+ isexists bool;
+BEGIN
+ isexists = va.exists(1);
+ raise notice 'isexists = %',isexists;
+end; $$ language plisql; 
+select test_varray_func_err2_5();
+NOTICE:  isexists = f
+ test_varray_func_err2_5 
+-------------------------
+ 
+(1 row)
+
+create function test_varray_func_err2_6() returns VOID as $$
+DECLARE
+ TYPE va_type as varray(10) OF text;
+ va va_type;
+BEGIN
+ raise notice 'va.first = %',va.first();
+ raise notice 'va.last = %',va.last();
+end; $$ language plisql; 
+select test_varray_func_err2_6();
+ERROR:  Reference to uninitialized collection
+DETAIL:  An element or member function of a nested table or varray was referenced ,without the collection having been initialized
+CONTEXT:  PL/hgSQL function test_varray_func_err2_6() line 6 at RAISE
+create function test_varray_func_err2_7() returns VOID as $$
+DECLARE
+ TYPE va_type as varray(10) OF text;
+ va va_type;
+BEGIN
+ raise notice 'va.count = %',va.count();
+end; $$ language plisql; 
+select test_varray_func_err2_7();
+ERROR:  Reference to uninitialized collection
+DETAIL:  An element or member function of a nested table or varray was referenced ,without the collection having been initialized
+CONTEXT:  PL/hgSQL function test_varray_func_err2_7() line 6 at RAISE
+create function test_varray_func_err2_8() returns VOID as $$
+DECLARE
+ TYPE va_type as varray(10) OF text;
+ va va_type;
+BEGIN
+ raise notice 'va.LIMIT = %',va.limit();
+end; $$ language plisql; 
+select test_varray_func_err2_8();
+ERROR:  Reference to uninitialized collection
+DETAIL:  An element or member function of a nested table or varray was referenced ,without the collection having been initialized
+CONTEXT:  PL/hgSQL function test_varray_func_err2_8() line 6 at RAISE
+create function test_varray_func_err2_9() returns VOID as $$
+DECLARE
+ TYPE va_type IS VARRAY(10) OF int;
+ va va_type;
+BEGIN
+ raise notice 'va.prior(3) = %',va.prior (3);
+ raise notice 'va.next(3) = %',va.next (3);
+end; $$ language plisql; 
+select test_varray_func_err2_9();
+ERROR:  Reference to uninitialized collection
+DETAIL:  An element or member function of a nested table or varray was referenced ,without the collection having been initialized
+CONTEXT:  PL/hgSQL function test_varray_func_err2_9() line 6 at RAISE
+--
+--Basic type constructor test
+--
+create function test_varray_construction_func1() returns VOID as $$
+DECLARE
+ TYPE va_type IS VARRAY(44) OF int;
+ va va_type;
+BEGIN
+ va := va_type('22',33,'345',345);
+ va(1) = 222;
+ raise notice '%',va;
+end; $$ language plisql; 
+select test_varray_construction_func1();
+NOTICE:  {222,33,345,345}
+ test_varray_construction_func1 
+--------------------------------
+ 
+(1 row)
+
+create function test_varray_construction_func2() returns VOID as $$
+DECLARE
+ TYPE va_type IS VARRAY(44) OF int;
+ va va_type;
+BEGIN
+ va := va_type(22,33,345,345);
+ va(1) = 222;
+ raise notice '%',va;
+end; $$ language plisql; 
+select test_varray_construction_func2();
+NOTICE:  {222,33,345,345}
+ test_varray_construction_func2 
+--------------------------------
+ 
+(1 row)
+
+create function test_varray_construction_func3() returns VOID as $$
+DECLARE
+ TYPE va_type IS VARRAY(44) OF int;
+ va va_type;
+BEGIN
+ va := va_type();
+ raise notice '%',va;
+end; $$ language plisql; 
+select test_varray_construction_func3();
+NOTICE:  {}
+ test_varray_construction_func3 
+--------------------------------
+ 
+(1 row)
+
+create function test_varray_construction_func4() returns VOID as $$
+DECLARE
+ TYPE va_type IS VARRAY(44) OF int;
+ va va_type;
+BEGIN
+ va := va_type();
+ va(1) = 333;
+ raise notice '%',va(1);
+end; $$ language plisql; 
+select test_varray_construction_func4();
+ERROR:  Subscript beyond count
+DETAIL:  A subscript was greater than the limit of a varray or non-positive for a varray or nested table. the varry was deleted
+CONTEXT:  PL/hgSQL function test_varray_construction_func4() line 7 at assignment
+create function test_varray_construction_func5() returns VOID as $$
+DECLARE
+ TYPE va_type IS VARRAY(44) OF int;
+ va va_type;
+BEGIN
+ va := va_type();
+ raise notice '%',va(1);
+end; $$ language plisql; 
+select test_varray_construction_func5();
+ERROR:  Subscript beyond count
+DETAIL:  A subscript was greater than the limit of a varray or non-positive for a varray or nested table. the varry was deleted
+CONTEXT:  PL/hgSQL function test_varray_construction_func5() line 7 at RAISE
+--
+--Basic type multidimensional testing: multidimensional long array testing
+--
+create function test_varray_multiple_dimensions1() returns VOID as $$
+DECLARE
+ TYPE t1 IS VARRAY(11) OF INTEGER; -- varray of integer
+ va t1 := t1(2,3,5);
+ TYPE nt1 IS VARRAY(22) OF t1; -- varray of varray of integer
+ nva nt1 := nt1(va, t1(55,6,73), t1(2,4), va);
+ i INTEGER;
+BEGIN
+ i := nva(2)(3);
+ raise notice 'i = %',i;
+ raise notice 'nva(2)(3) = %',nva(2)(3);
+end; $$ language plisql; 
+select test_varray_multiple_dimensions1();
+NOTICE:  i = 73
+NOTICE:  nva(2)(3) = 73
+ test_varray_multiple_dimensions1 
+----------------------------------
+ 
+(1 row)
+
+create function test_varray_multiple_dimensions2() returns VOID as $$
+DECLARE
+ TYPE t1 IS VARRAY(11) OF INTEGER; -- varray of integer
+ va t1 := t1(2,3,5);
+ TYPE nt1 IS VARRAY(22) OF t1; -- varray of varray of integer
+ nva nt1 := nt1(va, t1(55,6,73), t1(2,4), va);
+ i INTEGER;
+BEGIN
+ i := nva(2)(3);
+ raise notice 'nva = %',nva;
+ nva(2)(3) = 3;
+ raise notice 'i = %',i;
+ raise notice 'nva(2)(3) = %',nva(2)(3);
+ raise notice 'nva = %',nva;
+end; $$ language plisql; 
+select test_varray_multiple_dimensions2();
+NOTICE:  nva = {"{2,3,5}","{55,6,73}","{2,4}","{2,3,5}"}
+NOTICE:  i = 73
+NOTICE:  nva(2)(3) = 3
+NOTICE:  nva = {"{2,3,5}","{55,6,3}","{2,4}","{2,3,5}"}
+ test_varray_multiple_dimensions2 
+----------------------------------
+ 
+(1 row)
+
+create function test_varray_multiple_dimensions3() returns VOID as $$
+DECLARE
+ TYPE t1 IS VARRAY(11) OF INTEGER; -- varray of integer
+ va t1 := t1(2,3,5);
+ TYPE nt1 IS VARRAY(22) OF t1; -- varray of varray of integer
+ nva nt1 := nt1(va, t1(55,6,73), t1(2,4), va);
+BEGIN
+ raise notice 'nva = %',nva;
+ --nva = nva.EXTEND;
+ nva.extend;
+ raise notice 'nva = %',nva;
+ nva(5) := t1(56, 32); 
+ nva(4) := t1(45,43,67,43345);
+ raise notice 'nva = %',nva;
+end; $$ language plisql; 
+select test_varray_multiple_dimensions3();
+NOTICE:  nva = {"{2,3,5}","{55,6,73}","{2,4}","{2,3,5}"}
+NOTICE:  nva = {"{2,3,5}","{55,6,73}","{2,4}","{2,3,5}",NULL}
+NOTICE:  nva = {"{2,3,5}","{55,6,73}","{2,4}","{45,43,67,43345}","{56,32}"}
+ test_varray_multiple_dimensions3 
+----------------------------------
+ 
+(1 row)
+
+create function test_varray_multiple_dimensions4() returns VOID as $$
+DECLARE
+ TYPE t1 IS VARRAY(11) OF INTEGER; -- varray of integer
+ va t1 := t1(2,3,5);
+ TYPE nt1 IS VARRAY(22) OF t1; -- varray of varray of integer
+ nva nt1 := nt1(va, t1(55,6,73), t1(2,4), va);
+ new t1;
+ num int;
+BEGIN
+ raise notice 'nva = %',nva;
+ nva.EXTEND;
+ raise notice 'nva = %',nva;
+ nva(4) := t1(45,43,67,43345);
+ raise notice 'nva = %',nva;
+ new = nva(5); 
+ num = nva(5)(1);
+ raise notice 'nva = %',nva;
+ raise notice 'new = %',new;
+ raise notice 'num = %',num;
+end; $$ language plisql; 
+select test_varray_multiple_dimensions4();
+NOTICE:  nva = {"{2,3,5}","{55,6,73}","{2,4}","{2,3,5}"}
+NOTICE:  nva = {"{2,3,5}","{55,6,73}","{2,4}","{2,3,5}",NULL}
+NOTICE:  nva = {"{2,3,5}","{55,6,73}","{2,4}","{45,43,67,43345}",NULL}
+NOTICE:  nva = {"{2,3,5}","{55,6,73}","{2,4}","{45,43,67,43345}",NULL}
+NOTICE:  new = <NULL>
+NOTICE:  num = <NULL>
+ test_varray_multiple_dimensions4 
+----------------------------------
+ 
+(1 row)
+
+create function test_varray_multiple_dimensions5() returns VOID as $$
+DECLARE
+ TYPE t1 IS VARRAY(11) OF INTEGER; -- varray of integer
+ va t1 := t1(2,3,5);
+ TYPE nt1 IS VARRAY(22) OF t1; -- varray of varray of integer
+ nva nt1 := nt1(va, t1(55,6,73), t1(2,4), va);
+BEGIN
+ raise notice 'nva = %',nva;
+ nva.EXTEND;
+ --nva.extend;
+ raise notice 'nva = %',nva;
+ nva(5) := t1(56, 32); 
+ raise notice 'nva = %',nva;
+end; $$ language plisql; 
+select test_varray_multiple_dimensions5();
+NOTICE:  nva = {"{2,3,5}","{55,6,73}","{2,4}","{2,3,5}"}
+NOTICE:  nva = {"{2,3,5}","{55,6,73}","{2,4}","{2,3,5}",NULL}
+NOTICE:  nva = {"{2,3,5}","{55,6,73}","{2,4}","{2,3,5}","{56,32}"}
+ test_varray_multiple_dimensions5 
+----------------------------------
+ 
+(1 row)
+
+create function test_varray_multiple_dimensions6() returns VOID as $$
+DECLARE
+ TYPE t1 IS VARRAY(11) OF INTEGER; -- varray of integer
+ va t1 := t1(2,3,5);
+ TYPE nt1 IS VARRAY(22) OF t1; -- varray of varray of integer
+ nva nt1 := nt1(va, t1(55,6,73), t1(2,4), va);
+BEGIN
+ raise notice 'nva = %',nva;
+ --nva = nva.EXTEND;
+ nva.extend;
+ raise notice 'nva = %',nva;
+ nva(5)(1) := 444;
+ raise notice 'nva = %',nva;
+end; $$ language plisql; 
+select test_varray_multiple_dimensions6();
+NOTICE:  nva = {"{2,3,5}","{55,6,73}","{2,4}","{2,3,5}"}
+NOTICE:  nva = {"{2,3,5}","{55,6,73}","{2,4}","{2,3,5}",NULL}
+ERROR:  Reference to uninitialized collection 
+DETAIL:  An element or member function of a nested table or varray was referenced (where an initialized collection is needed) without the collection having been initialized
+CONTEXT:  PL/hgSQL function test_varray_multiple_dimensions6() line 12 at assignment
+create function test_varray_multiple_dimensions7() returns VOID as $$
+DECLARE
+ TYPE t1 IS VARRAY(11) OF INTEGER; -- varray of integer
+ va t1 := t1(2,3,5);
+ TYPE nt1 IS VARRAY(22) OF t1; -- varray of varray of integer
+ nva nt1 := nt1(va, t1(55,6,73), t1(2,4), va);
+BEGIN
+ raise notice 'nva = %',nva;
+ --nva = nva.EXTEND;
+ nva.extend;
+ raise notice 'nva = %',nva;
+ nva(5) := t1(444);
+ raise notice 'nva = %',nva;
+end; $$ language plisql; 
+select test_varray_multiple_dimensions7();
+NOTICE:  nva = {"{2,3,5}","{55,6,73}","{2,4}","{2,3,5}"}
+NOTICE:  nva = {"{2,3,5}","{55,6,73}","{2,4}","{2,3,5}",NULL}
+NOTICE:  nva = {"{2,3,5}","{55,6,73}","{2,4}","{2,3,5}","{444}"}
+ test_varray_multiple_dimensions7 
+----------------------------------
+ 
+(1 row)
+
+create function test_varray_multiple_dimensions8() returns VOID as $$
+DECLARE
+ TYPE t1 IS VARRAY(11) OF INTEGER; -- varray of integer
+ va t1 := t1(2,3,5);
+ TYPE nt1 IS VARRAY(22) OF t1; -- varray of varray of integer
+ nva nt1 := nt1(va, t1(55,6,73), t1(2,4), va);
+ i INTEGER;
+ va1 t1;
+BEGIN
+ raise notice 'va = %',va; 
+ raise notice 'nva = %',nva;
+ raise notice 'va1 = %',va1;
+ i := nva(2)(3);
+ raise notice 'i = %',i;
+ va1 = t1(88,99);
+ nva(4) := va1; 
+ raise notice 'va = %',va; 
+ raise notice 'nva = %',nva;
+ raise notice 'va1 = %',va1;
+end; $$ language plisql; 
+select test_varray_multiple_dimensions8();
+NOTICE:  va = {2,3,5}
+NOTICE:  nva = {"{2,3,5}","{55,6,73}","{2,4}","{2,3,5}"}
+NOTICE:  va1 = <NULL>
+NOTICE:  i = 73
+NOTICE:  va = {2,3,5}
+NOTICE:  nva = {"{2,3,5}","{55,6,73}","{2,4}","{88,99}"}
+NOTICE:  va1 = {88,99}
+ test_varray_multiple_dimensions8 
+----------------------------------
+ 
+(1 row)
+
+create function test_varray_multiple_dimensions9() returns VOID as $$
+DECLARE
+ TYPE t1 IS VARRAY(11) OF INTEGER; -- varray of integer
+ va t1 := t1(2,3,5);
+ TYPE nt1 IS VARRAY(22) OF t1; -- varray of varray of integer
+ nva nt1 := nt1(va, t1(55,6,73), t1(2,4), va);
+ i INTEGER;
+ va1 t1;
+BEGIN
+ raise notice 'nva = %',nva;
+ nva(4)(2) := 1; 
+ nva(4).extend; 
+ nva(4)(1) := 89; 
+ raise notice 'nva = %',nva;
+end; $$ language plisql; 
+select test_varray_multiple_dimensions9();
+NOTICE:  nva = {"{2,3,5}","{55,6,73}","{2,4}","{2,3,5}"}
+NOTICE:  nva = {"{2,3,5}","{55,6,73}","{2,4}","{89,1,5,NULL}"}
+ test_varray_multiple_dimensions9 
+----------------------------------
+ 
+(1 row)
+
+create function test_varray_multiple_dimensions10() returns VOID as $$
+DECLARE
+ TYPE t1 IS VARRAY(11) OF INTEGER; -- varray of integer
+ va t1 := t1(2,3,5);
+ TYPE nt1 IS VARRAY(22) OF t1; -- varray of varray of integer
+ nva nt1 := nt1(va, t1(55,6,73), t1(2,4), va);
+ i INTEGER;
+ va1 t1;
+BEGIN
+ i := nva(2)(3);
+ raise notice 'i = %',i;
+ nva.EXTEND;
+ nva(5) := t1(56, 32); 
+ nva(4) := t1(45,43,67,43345);
+ nva(4)(3) := 1; 
+ nva(4).EXTEND; 
+ nva(4)(4) := 89; 
+ raise notice 'va = %',va; 
+ raise notice 'nva = %',nva;
+ raise notice 'va1 = %',va1;
+end; $$ language plisql; 
+select test_varray_multiple_dimensions10();
+NOTICE:  i = 73
+NOTICE:  va = {2,3,5}
+NOTICE:  nva = {"{2,3,5}","{55,6,73}","{2,4}","{45,43,1,89,NULL}","{56,32}"}
+NOTICE:  va1 = <NULL>
+ test_varray_multiple_dimensions10 
+-----------------------------------
+ 
+(1 row)
+
+create function test_varray_multiple_dimensions11() returns VOID as $$
+DECLARE
+ TYPE tb1 as varray(15) OF int;
+ v4 tb1 = tb1(11,22,33,44);
+ v5 tb1 = tb1(11,22,33,44);
+ TYPE tb2 as varray(15) OF tb1;
+ v2 tb2 = tb2(tb1(11),tb1(22),v5);
+BEGIN
+ v4(1) := 666;
+ v4(2) := 777;
+ v2(1) := v4;
+ raise notice '%', v2;
+ raise notice '%', v2(1)(1);
+ raise notice '%', v2(1)(2);
+end; $$ language plisql; 
+select test_varray_multiple_dimensions11();
+NOTICE:  {"{666,777,33,44}","{22}","{11,22,33,44}"}
+NOTICE:  666
+NOTICE:  777
+ test_varray_multiple_dimensions11 
+-----------------------------------
+ 
+(1 row)
+
+create function test_varray_multiple_dimensions12() returns VOID as $$
+DECLARE
+ TYPE t1 IS VARRAY(11) OF INTEGER; -- varray of integer
+ va t1 := t1(2,3,5);
+ TYPE nt1 IS VARRAY(22) OF t1; -- varray of varray of integer
+ nva nt1 := nt1(va, t1(55,6,73), t1(2,4), va);
+ TYPE nt3 IS VARRAY(33) OF nt1;
+ nva3 nt3 := nt3(nva, nva);
+ i INTEGER;
+BEGIN
+ i := nva(2)(3);
+ raise notice 'nva = %',nva;
+ nva(2)(3) = 3;
+ raise notice 'i = %',i;
+ raise notice 'nva(2)(3) = %',nva(2)(3);
+ raise notice 'nva = %',nva;
+ raise notice 'nva3 = %',nva3;
+ nva3(1)(1)(1) = 999;
+ nva3(2)(2)(2) = 888;
+ raise notice 'nva3 = %',nva3;
+ raise notice 'nva3(1)(1)(1) = %',nva3(1)(1)(1);
+end; $$ language plisql; 
+select test_varray_multiple_dimensions12();
+NOTICE:  nva = {"{2,3,5}","{55,6,73}","{2,4}","{2,3,5}"}
+NOTICE:  i = 73
+NOTICE:  nva(2)(3) = 3
+NOTICE:  nva = {"{2,3,5}","{55,6,3}","{2,4}","{2,3,5}"}
+NOTICE:  nva3 = {"{\"{2,3,5}\",\"{55,6,73}\",\"{2,4}\",\"{2,3,5}\"}","{\"{2,3,5}\",\"{55,6,73}\",\"{2,4}\",\"{2,3,5}\"}"}
+NOTICE:  nva3 = {"{\"{999,3,5}\",\"{55,6,73}\",\"{2,4}\",\"{2,3,5}\"}","{\"{2,3,5}\",\"{55,888,73}\",\"{2,4}\",\"{2,3,5}\"}"}
+NOTICE:  nva3(1)(1)(1) = 999
+ test_varray_multiple_dimensions12 
+-----------------------------------
+ 
+(1 row)
+
+--
+--Basic type multidimensional invocation function test
+--
+create function test_varray_multiple_dimensions_func1() returns VOID as $$
+DECLARE
+ TYPE t1 IS VARRAY(11) OF INTEGER; 
+ va t1 := t1(2,3,5);
+ TYPE nt1 IS VARRAY(22) OF t1; 
+ nva nt1 := nt1(va, t1(55,6,73), t1(2,4), va);
+ BEGIN
+ nva.delete(); 
+ raise notice '%', nva;
+end; $$ language plisql; 
+select test_varray_multiple_dimensions_func1();
+ERROR:  Subscript beyond count
+DETAIL:  A subscript was greater than the limit of a varray or non-positive for a varray or nested table. the varry was deleted
+CONTEXT:  PL/hgSQL function test_varray_multiple_dimensions_func1() line 9 at RAISE
+create function test_varray_multiple_dimensions_func2() returns VOID as $$
+DECLARE
+ TYPE t1 IS VARRAY(11) OF INTEGER; 
+ va t1 := t1(2,3,5);
+ TYPE nt1 IS VARRAY(22) OF t1; 
+ nva nt1 := nt1(va, t1(55,6,73), t1(2,4), va);
+BEGIN
+ nva(1).delete(); 
+ raise notice '%', nva;
+end; $$ language plisql; 
+select test_varray_multiple_dimensions_func2();
+ERROR:  Subscript beyond count
+DETAIL:  A subscript was greater than the limit of a varray or non-positive for a varray or nested table. the varry was deleted
+CONTEXT:  PL/hgSQL function test_varray_multiple_dimensions_func2() line 9 at RAISE
+create function test_varray_multiple_dimensions_func3() returns VOID as $$
+DECLARE
+ TYPE t1 IS VARRAY(11) OF INTEGER; 
+ va t1 := t1(2,3,5);
+ TYPE nt1 IS VARRAY(22) OF t1; 
+ nva nt1 := nt1(va, t1(55,6,73), t1(2,4), va);
+BEGIN
+ nva(1).delete(); 
+ raise notice '%', nva(2);
+end; $$ language plisql; 
+select test_varray_multiple_dimensions_func3();
+NOTICE:  {55,6,73}
+ test_varray_multiple_dimensions_func3 
+---------------------------------------
+ 
+(1 row)
+
+create function test_varray_multiple_dimensions_func4() returns VOID as $$
+DECLARE
+ TYPE t1 IS VARRAY(11) OF INTEGER; 
+ va t1 := t1(2,3,5);
+ TYPE nt1 IS VARRAY(22) OF t1; 
+ nva nt1 := nt1(va, t1(55,6,73), t1(2,4), va);
+BEGIN
+ raise notice '%',(nva(1));
+ nva(1).trim();
+ raise notice '%',(nva(1));
+ nva(1).trim;
+ raise notice '%',(nva(1));
+ nva(1).TRIM(4);
+ raise notice '%',(nva(1));
+end; $$ language plisql;
+select test_varray_multiple_dimensions_func4();
+NOTICE:  {2,3,5}
+NOTICE:  {2,3}
+NOTICE:  {2}
+ERROR:  Subscript beyond count
+DETAIL:  An in-limit subscript was greater than the count of a varray or too large for a nested table.
+CONTEXT:  PL/hgSQL function collection_trim(varray,integer) line 3 at assignment
+SQL statement "CALL nva(1).collection_TRIM(4)"
+PL/hgSQL function test_varray_multiple_dimensions_func4() line 13 at CALL
+create function test_varray_multiple_dimensions_func5() returns VOID as $$
+DECLARE
+ TYPE t1 IS VARRAY(11) OF INTEGER; 
+ va t1 := t1(2,3,5);
+ TYPE nt1 IS VARRAY(22) OF t1; 
+ nva nt1 := nt1(va, t1(55,6,73), t1(2,4), va);
+BEGIN
+ raise notice '%',(nva);
+ nva.trim(1);
+ raise notice '%',(nva);
+end; $$ language plisql; 
+select test_varray_multiple_dimensions_func5();
+NOTICE:  {"{2,3,5}","{55,6,73}","{2,4}","{2,3,5}"}
+NOTICE:  {"{2,3,5}","{55,6,73}","{2,4}"}
+ test_varray_multiple_dimensions_func5 
+---------------------------------------
+ 
+(1 row)
+
+create function test_varray_multiple_dimensions_func6() returns VOID as $$
+DECLARE
+ TYPE t1 IS VARRAY(11) OF INTEGER; 
+ va t1 := t1(2,3,5);
+ TYPE nt1 IS VARRAY(22) OF t1; 
+ nva nt1 := nt1(va, t1(55,6,73), t1(2,4), va);
+BEGIN
+ raise notice '%',(nva);
+ nva.trim(9);
+ raise notice '%',(nva);
+end; $$ language plisql; 
+select test_varray_multiple_dimensions_func6();
+NOTICE:  {"{2,3,5}","{55,6,73}","{2,4}","{2,3,5}"}
+ERROR:  Subscript beyond count
+DETAIL:  An in-limit subscript was greater than the count of a varray or too large for a nested table.
+CONTEXT:  PL/hgSQL function collection_trim(varray,integer) line 3 at assignment
+SQL statement "CALL nva.trim(9)"
+PL/hgSQL function test_varray_multiple_dimensions_func6() line 9 at CALL
+create function test_varray_multiple_dimensions_func7() returns VOID as $$
+DECLARE
+ TYPE t1 IS VARRAY(11) OF INTEGER; 
+ va t1 := t1(2,3,5);
+ TYPE nt1 IS VARRAY(22) OF t1; 
+ nva nt1 := nt1(va, t1(55,6,73), t1(2,4), va);
+BEGIN
+ raise notice '%',(nva);
+ nva(1).extend(); 
+ raise notice '%',(nva);
+ nva(1).extend(2); 
+ raise notice '%',(nva);
+ nva(1).extend(1,1); 
+ raise notice '%',(nva);
+ nva(1).extend(3,3); 
+ raise notice '%',(nva);
+end; $$ language plisql; 
+select test_varray_multiple_dimensions_func7();
+NOTICE:  {"{2,3,5}","{55,6,73}","{2,4}","{2,3,5}"}
+NOTICE:  {"{2,3,5,NULL}","{55,6,73}","{2,4}","{2,3,5}"}
+NOTICE:  {"{2,3,5,NULL,NULL,NULL}","{55,6,73}","{2,4}","{2,3,5}"}
+NOTICE:  {"{2,3,5,NULL,NULL,NULL,2}","{55,6,73}","{2,4}","{2,3,5}"}
+NOTICE:  {"{2,3,5,NULL,NULL,NULL,2,5,5,5}","{55,6,73}","{2,4}","{2,3,5}"}
+ test_varray_multiple_dimensions_func7 
+---------------------------------------
+ 
+(1 row)
+
+create function test_varray_multiple_dimensions_func8() returns VOID as $$
+DECLARE
+ TYPE t1 IS VARRAY(11) OF INTEGER; 
+ va t1 := t1(2,3,5);
+ TYPE nt1 IS VARRAY(22) OF t1; 
+ nva nt1 := nt1(va, t1(55,6,73), t1(2,4), va);
+BEGIN
+ raise notice '%',(nva);
+ nva.extend(); 
+ raise notice '%',(nva);
+ nva.extend(2); 
+ raise notice '%',(nva);
+ nva.extend(1,1); 
+ raise notice '%',(nva);
+ nva.extend(1,3); 
+ raise notice '%',(nva);
+ nva.extend(3,3); 
+ raise notice '%',(nva);
+end; $$ language plisql; 
+select test_varray_multiple_dimensions_func8();
+NOTICE:  {"{2,3,5}","{55,6,73}","{2,4}","{2,3,5}"}
+NOTICE:  {"{2,3,5}","{55,6,73}","{2,4}","{2,3,5}",NULL}
+NOTICE:  {"{2,3,5}","{55,6,73}","{2,4}","{2,3,5}",NULL,NULL,NULL}
+NOTICE:  {"{2,3,5}","{55,6,73}","{2,4}","{2,3,5}",NULL,NULL,NULL,"{2,3,5}"}
+NOTICE:  {"{2,3,5}","{55,6,73}","{2,4}","{2,3,5}",NULL,NULL,NULL,"{2,3,5}","{2,4}"}
+NOTICE:  {"{2,3,5}","{55,6,73}","{2,4}","{2,3,5}",NULL,NULL,NULL,"{2,3,5}","{2,4}","{2,4}","{2,4}","{2,4}"}
+ test_varray_multiple_dimensions_func8 
+---------------------------------------
+ 
+(1 row)
+
+create function test_varray_multiple_dimensions_func9() returns VOID as $$
+DECLARE
+ TYPE t1 IS VARRAY(11) OF INTEGER; 
+ va t1 := t1(2,3,5);
+ TYPE nt1 IS VARRAY(22) OF t1; 
+ nva nt1 := nt1(va, t1(55,6,73), t1(2,4), va);
+BEGIN
+ raise notice '%',(nva);
+ nva(1).extend(10); 
+ raise notice '%',(nva);
+end; $$ language plisql; 
+select test_varray_multiple_dimensions_func9();
+NOTICE:  {"{2,3,5}","{55,6,73}","{2,4}","{2,3,5}"}
+ERROR:  Subscript(13) outside of limit(11)
+DETAIL:  A subscript was greater than the limit of a varray or non-positive for a varray or nested table. Check the program logic and increase the varray limit if necessary.
+CONTEXT:  PL/hgSQL function collection_extend(varray,integer) line 3 at assignment
+SQL statement "CALL nva(1).collection_extend(10)"
+PL/hgSQL function test_varray_multiple_dimensions_func9() line 9 at CALL
+create function test_varray_multiple_dimensions_func10() returns VOID as $$
+DECLARE
+ TYPE t1 IS VARRAY(11) OF INTEGER; 
+ va t1 := t1(2,3,5);
+ TYPE nt1 IS VARRAY(11) OF t1; 
+ nva nt1 := nt1(va, t1(55,6,73), t1(2,4), va);
+BEGIN
+ raise notice '%',(nva);
+ nva.extend(8); 
+ raise notice '%',(nva);
+end; $$ language plisql; 
+select test_varray_multiple_dimensions_func10();
+NOTICE:  {"{2,3,5}","{55,6,73}","{2,4}","{2,3,5}"}
+ERROR:  Subscript(12) outside of limit(11)
+DETAIL:  A subscript was greater than the limit of a varray or non-positive for a varray or nested table. Check the program logic and increase the varray limit if necessary.
+CONTEXT:  PL/hgSQL function collection_extend(varray,integer) line 3 at assignment
+SQL statement "CALL nva.extend(8)"
+PL/hgSQL function test_varray_multiple_dimensions_func10() line 9 at CALL
+create function test_varray_multiple_dimensions_func11() returns VOID as $$
+DECLARE
+ TYPE t1 IS VARRAY(11) OF INTEGER; 
+ va t1 := t1(2,3,5);
+ TYPE nt1 IS VARRAY(22) OF t1; 
+ nva nt1 := nt1(va, t1(55,6,73), t1(2,4), va);
+ isexists bool;
+BEGIN
+ FOR i IN 1..4 LOOP
+ isexists = nva(1).exists(i);
+ IF isexists THEN
+ raise notice 'nva(1)(%) = %',i,nva(1)(i);
+ ELSE
+ raise notice 'nva(1)(%) does not exist',i;
+ END IF;
+ END LOOP;
+end; $$ language plisql; 
+select test_varray_multiple_dimensions_func11();
+NOTICE:  nva(1)(1) = 2
+NOTICE:  nva(1)(2) = 3
+NOTICE:  nva(1)(3) = 5
+NOTICE:  nva(1)(4) does not exist
+ test_varray_multiple_dimensions_func11 
+----------------------------------------
+ 
+(1 row)
+
+create function test_varray_multiple_dimensions_func12() returns VOID as $$
+DECLARE
+ TYPE t1 IS VARRAY(11) OF INTEGER; 
+ va t1 := t1(2,3,5);
+ TYPE nt1 IS VARRAY(22) OF t1; 
+ nva nt1 := nt1(va, t1(55,6,73), t1(2,4), va);
+ isexists bool;
+BEGIN
+ FOR i IN 1..5 LOOP
+ isexists = nva.exists(i);
+ IF isexists THEN
+ raise notice 'nva(%) = %',i,nva(i);
+ ELSE
+ raise notice 'nva(%) does not exist',i;
+ END IF;
+ END LOOP;
+end; $$ language plisql; 
+select test_varray_multiple_dimensions_func12();
+NOTICE:  nva(1) = {2,3,5}
+NOTICE:  nva(2) = {55,6,73}
+NOTICE:  nva(3) = {2,4}
+NOTICE:  nva(4) = {2,3,5}
+NOTICE:  nva(5) does not exist
+ test_varray_multiple_dimensions_func12 
+----------------------------------------
+ 
+(1 row)
+
+create function test_varray_multiple_dimensions_func13() returns VOID as $$
+DECLARE
+ TYPE t1 IS VARRAY(11) OF INTEGER; 
+ va t1 := t1(2,3,5);
+ TYPE nt1 IS VARRAY(22) OF t1; 
+ nva nt1 := nt1(va, t1(55,6,73), t1(2,4), va);
+ isexists bool;
+BEGIN
+ raise notice 'nva(1).first = %',nva(1).first;
+ raise notice 'nva(1).last = %',nva(1).last();
+ raise notice 'nva.first = %',nva.first;
+ raise notice 'nva.last = %',nva.last();
+end; $$ language plisql; 
+select test_varray_multiple_dimensions_func13();
+NOTICE:  nva(1).first = 1
+NOTICE:  nva(1).last = 3
+NOTICE:  nva.first = 1
+NOTICE:  nva.last = 4
+ test_varray_multiple_dimensions_func13 
+----------------------------------------
+ 
+(1 row)
+
+create function test_varray_multiple_dimensions_func14() returns VOID as $$
+DECLARE
+ TYPE t1 IS VARRAY(11) OF INTEGER; 
+ va t1 := t1(2,3,5);
+ TYPE nt1 IS VARRAY(22) OF t1; 
+ nva nt1 := nt1(va, t1(55,6,73), t1(2,4), va);
+BEGIN
+ raise notice 'nva = %',nva;
+ raise notice 'nva(1).last = %',nva(1).last();
+ raise notice 'nva(1).count = %',nva(1).count();
+ va.trim(3);
+ raise notice 'nva = %',nva;
+ raise notice 'nva.last = %',nva.last();
+ raise notice 'nva.count = %',nva.count();
+end; $$ language plisql; 
+select test_varray_multiple_dimensions_func14();
+NOTICE:  nva = {"{2,3,5}","{55,6,73}","{2,4}","{2,3,5}"}
+NOTICE:  nva(1).last = 3
+NOTICE:  nva(1).count = 3
+NOTICE:  nva = {"{2,3,5}","{55,6,73}","{2,4}","{2,3,5}"}
+NOTICE:  nva.last = 4
+NOTICE:  nva.count = 4
+ test_varray_multiple_dimensions_func14 
+----------------------------------------
+ 
+(1 row)
+
+create function test_varray_multiple_dimensions_func15() returns VOID as $$
+DECLARE
+ TYPE t1 IS VARRAY(23) OF INTEGER; 
+ va t1 := t1(2,3,5);
+ TYPE nt1 IS VARRAY(22) OF t1; 
+ nva nt1 := nt1(va, t1(55,6,73), t1(2,4), va);
+BEGIN
+ raise notice 'nva(1).COUNT = %',nva(1).COUNT();
+ raise notice 'nva(1).LIMIT = %',nva(1).limit();
+ raise notice 'nva.COUNT = %',nva.COUNT();
+ raise notice 'nva.LIMIT = %',nva.limit();
+end; $$ language plisql; 
+select test_varray_multiple_dimensions_func15();
+NOTICE:  nva(1).COUNT = 3
+NOTICE:  nva(1).LIMIT = 23
+NOTICE:  nva.COUNT = 4
+NOTICE:  nva.LIMIT = 22
+ test_varray_multiple_dimensions_func15 
+----------------------------------------
+ 
+(1 row)
+
+create function test_varray_multiple_dimensions_func16() returns VOID as $$
+DECLARE
+ TYPE t1 IS VARRAY(11) OF INTEGER; 
+ va t1 := t1(2,3,5);
+ TYPE nt1 IS VARRAY(22) OF t1; 
+ nva nt1 := nt1(va, t1(55,6,73), t1(2,4), va);
+BEGIN
+ raise notice 'nva(1).prior(3) = %',nva(1).prior (3);
+ raise notice 'nva(1).next(3) = %',nva(1).next (3);
+ raise notice 'nva(1).prior(3400) = %',nva(1).prior (3400);
+ raise notice 'nva(1).next(3400) = %',nva(1).next (3400);
+ raise notice 'nva.prior(3) = %',nva.prior (3);
+ raise notice 'nva.next(3) = %',nva.next (3);
+ raise notice 'nva.prior(3400) = %',nva.prior (3400);
+ raise notice 'nva.next(3400) = %',nva.next (3400);
+end; $$ language plisql; 
+select test_varray_multiple_dimensions_func16();
+NOTICE:  nva(1).prior(3) = 2
+NOTICE:  nva(1).next(3) = <NULL>
+NOTICE:  nva(1).prior(3400) = 3
+NOTICE:  nva(1).next(3400) = <NULL>
+NOTICE:  nva.prior(3) = 2
+NOTICE:  nva.next(3) = 4
+NOTICE:  nva.prior(3400) = 4
+NOTICE:  nva.next(3400) = <NULL>
+ test_varray_multiple_dimensions_func16 
+----------------------------------------
+ 
+(1 row)
+
+--
+--Multi-dimensional collection type exception scenario test
+--
+create function test_varray_multiple_dimensions_err_test1() returns VOID as $$
+DECLARE
+ TYPE t1 IS VARRAY(11) OF INTEGER; -- varray of integer
+ va t1 := t1(2,3,5);
+ TYPE nt1 IS VARRAY(22) OF t1; -- varray of varray of integer
+ nva nt1 := nt1(va, t1(55,6,73), t1(2,4), va);
+ TYPE nt3 IS VARRAY(33) OF nt1;
+ nva3 nt3 := nt3(nva, nva);
+ i INTEGER;
+BEGIN
+ i := nva(2)(3);
+ raise notice 'nva = %',nva;
+ nva(2)(3) = 3;
+ raise notice 'i = %',i;
+ raise notice 'nva(2)(3) = %',nva(2)(3);
+ raise notice 'nva = %',nva;
+ raise notice 'nva3 = %',nva3;
+ nva3(1)(1)(1) = 999;
+ nva3(2)(2)(2) = 888;
+ raise notice 'nva3 = %',nva3;
+ raise notice 'nva3(1)(1)(1) = %',nva3(1)(1)(1);
+end; $$ language plisql; 
+select test_varray_multiple_dimensions_err_test1();
+NOTICE:  nva = {"{2,3,5}","{55,6,73}","{2,4}","{2,3,5}"}
+NOTICE:  i = 73
+NOTICE:  nva(2)(3) = 3
+NOTICE:  nva = {"{2,3,5}","{55,6,3}","{2,4}","{2,3,5}"}
+NOTICE:  nva3 = {"{\"{2,3,5}\",\"{55,6,73}\",\"{2,4}\",\"{2,3,5}\"}","{\"{2,3,5}\",\"{55,6,73}\",\"{2,4}\",\"{2,3,5}\"}"}
+NOTICE:  nva3 = {"{\"{999,3,5}\",\"{55,6,73}\",\"{2,4}\",\"{2,3,5}\"}","{\"{2,3,5}\",\"{55,888,73}\",\"{2,4}\",\"{2,3,5}\"}"}
+NOTICE:  nva3(1)(1)(1) = 999
+ test_varray_multiple_dimensions_err_test1 
+-------------------------------------------
+ 
+(1 row)
+
+create function test_varray_multiple_dimensions_err_test2() returns VOID as $$
+DECLARE
+ TYPE t1 IS VARRAY(11) OF INTEGER;
+ va t1 := t1(2,3,5);
+ TYPE nt1 IS VARRAY(22) OF t1; 
+ nva nt1 := nt1(va, t1(55,6,73), t1(2,4), va);
+ TYPE nt2 IS VARRAY(33) OF t1;
+ nva2 nt2 := nt2(t1, t1);
+BEGIN
+ raise notice 'nva = %',nva;
+ raise notice 'nva2 = %',nva2;
+ nt2 = nt1;
+ raise notice 'nva = %',nva;
+ raise notice 'nva2 = %',nva2;
+end; $$ language plisql; 
+select test_varray_multiple_dimensions_err_test2();
+NOTICE:  nva = {"{2,3,5}","{55,6,73}","{2,4}","{2,3,5}"}
+NOTICE:  nva2 = {NULL,NULL}
+ERROR:  expression is of wrong type, [nt1] to [nt2]
+CONTEXT:  PL/hgSQL function test_varray_multiple_dimensions_err_test2() line 12 at assignment
+create function test_varray_multiple_dimensions_err_test3() returns VOID as $$
+DECLARE
+ TYPE t1 IS VARRAY(11) OF INTEGER;
+ va t1 := t1(2,3,5);
+ TYPE nt1 IS VARRAY(22) OF t1; 
+ nva nt1 := nt1(va, t1(55,6,73), t1(2,4), va);
+ TYPE nt3 IS VARRAY(33) OF nt1;
+ nva3 nt3 := nt3(nva, nva);
+BEGIN
+ raise notice 'nva = %',nva;
+ raise notice 'nva = %',nva;
+ raise notice 'nva3 = %',nva3;
+ va = nva3(1)(1);
+ nva = nva3(1)(1);
+ raise notice 'va = %',va;
+ raise notice 'nva = %',nva;
+ raise notice 'nva3 = %',nva3;
+end; $$ language plisql; 
+select test_varray_multiple_dimensions_err_test3();
+NOTICE:  nva = {"{2,3,5}","{55,6,73}","{2,4}","{2,3,5}"}
+NOTICE:  nva = {"{2,3,5}","{55,6,73}","{2,4}","{2,3,5}"}
+NOTICE:  nva3 = {"{\"{2,3,5}\",\"{55,6,73}\",\"{2,4}\",\"{2,3,5}\"}","{\"{2,3,5}\",\"{55,6,73}\",\"{2,4}\",\"{2,3,5}\"}"}
+ERROR:  expression is of wrong type, [t1] to [nt1]
+CONTEXT:  PL/hgSQL function test_varray_multiple_dimensions_err_test3() line 14 at assignment
+create function test_varray_multiple_dimensions_err_test4() returns VOID as $$
+DECLARE
+ TYPE t1 IS VARRAY(11) OF INTEGER;
+ va t1 := t1(2,3,5);
+ TYPE nt1 IS VARRAY(22) OF t1; 
+ nva nt1 := nt1(va, t1(55,6,73), t1(2,4), va);
+ TYPE nt3 IS VARRAY(33) OF nt1;
+ nva3 nt3 := nt3(nva, nva);
+BEGIN
+ raise notice 'nva = %',nva;
+ raise notice 'nva = %',nva;
+ raise notice 'nva3 = %',nva3;
+ nva(1) = nva3(1);
+ raise notice 'va = %',va;
+ raise notice 'nva = %',nva;
+ raise notice 'nva3 = %',nva3;
+end; $$ language plisql; 
+select test_varray_multiple_dimensions_err_test4();
+NOTICE:  nva = {"{2,3,5}","{55,6,73}","{2,4}","{2,3,5}"}
+NOTICE:  nva = {"{2,3,5}","{55,6,73}","{2,4}","{2,3,5}"}
+NOTICE:  nva3 = {"{\"{2,3,5}\",\"{55,6,73}\",\"{2,4}\",\"{2,3,5}\"}","{\"{2,3,5}\",\"{55,6,73}\",\"{2,4}\",\"{2,3,5}\"}"}
+ERROR:  expression is of wrong type, [nt1] to [t1]
+CONTEXT:  PL/hgSQL function test_varray_multiple_dimensions_err_test4() line 13 at assignment
+create function test_varray_multiple_dimensions_err_test5() returns VOID as $$
+DECLARE
+ TYPE t1 IS VARRAY(11) OF INTEGER;
+ va t1 := t1(2,3,5);
+ TYPE nt1 IS VARRAY(22) OF t1; 
+ nva nt1 := nt1(va, t1(55,6,73), t1(2,4), va);
+ TYPE nt3 IS VARRAY(33) OF nt1;
+ nva3 nt3 := nt3(nva, nva);
+BEGIN
+ raise notice 'nva = %',nva;
+ raise notice 'nva = %',nva;
+ raise notice 'nva3 = %',nva3;
+ nva(1) = nva3;
+ raise notice 'va = %',va;
+ raise notice 'nva = %',nva;
+ raise notice 'nva3 = %',nva3;
+end; $$ language plisql; 
+select test_varray_multiple_dimensions_err_test5();
+NOTICE:  nva = {"{2,3,5}","{55,6,73}","{2,4}","{2,3,5}"}
+NOTICE:  nva = {"{2,3,5}","{55,6,73}","{2,4}","{2,3,5}"}
+NOTICE:  nva3 = {"{\"{2,3,5}\",\"{55,6,73}\",\"{2,4}\",\"{2,3,5}\"}","{\"{2,3,5}\",\"{55,6,73}\",\"{2,4}\",\"{2,3,5}\"}"}
+ERROR:  expression is of wrong type, [nt3] to [t1]
+CONTEXT:  PL/hgSQL function test_varray_multiple_dimensions_err_test5() line 13 at assignment
+create function test_varray_multiple_dimensions_err_test6() returns VOID as $$
+DECLARE
+ TYPE t1 IS VARRAY(11) OF INTEGER;
+ va t1 := t1(2,3,5);
+ TYPE nt1 IS VARRAY(22) OF t1; 
+ nva nt1 := nt1(va, t1(55,6,73), t1(2,4), va);
+ TYPE nt3 IS VARRAY(33) OF nt1;
+ nva3 nt3 := nt3(nva, nva);
+BEGIN
+ raise notice 'nva = %',nva;
+ raise notice 'nva = %',nva;
+ raise notice 'nva3 = %',nva3;
+ va(1) = nva3(1)(1)(1);
+ --nva(1) = nva3;
+ raise notice 'va = %',va;
+ raise notice 'nva = %',nva;
+ raise notice 'nva3 = %',nva3;
+end; $$ language plisql; 
+select test_varray_multiple_dimensions_err_test6();
+NOTICE:  nva = {"{2,3,5}","{55,6,73}","{2,4}","{2,3,5}"}
+NOTICE:  nva = {"{2,3,5}","{55,6,73}","{2,4}","{2,3,5}"}
+NOTICE:  nva3 = {"{\"{2,3,5}\",\"{55,6,73}\",\"{2,4}\",\"{2,3,5}\"}","{\"{2,3,5}\",\"{55,6,73}\",\"{2,4}\",\"{2,3,5}\"}"}
+NOTICE:  va = {2,3,5}
+NOTICE:  nva = {"{2,3,5}","{55,6,73}","{2,4}","{2,3,5}"}
+NOTICE:  nva3 = {"{\"{2,3,5}\",\"{55,6,73}\",\"{2,4}\",\"{2,3,5}\"}","{\"{2,3,5}\",\"{55,6,73}\",\"{2,4}\",\"{2,3,5}\"}"}
+ test_varray_multiple_dimensions_err_test6 
+-------------------------------------------
+ 
+(1 row)
+
+create function test_varray_multiple_dimensions_err_test7() returns VOID as $$
+DECLARE
+ TYPE t1 IS VARRAY(11) OF INTEGER;
+ va t1 := t1(2,3,5);
+ TYPE nt1 IS VARRAY(22) OF t1; 
+ nva nt1 := nt1(va, t1(55,6,73), t1(2,4), va);
+ TYPE nt3 IS VARRAY(33) OF nt1;
+ nva3 nt3 := nt3(nva, nva);
+BEGIN
+ raise notice 'nva = %',nva;
+ raise notice 'nva = %',nva;
+ raise notice 'nva3 = %',nva3;
+ va(1) = nva3(1)(1);
+ --nva(1) = nva3;
+ raise notice 'va = %',va;
+ raise notice 'nva = %',nva;
+ raise notice 'nva3 = %',nva3;
+end; $$ language plisql; 
+select test_varray_multiple_dimensions_err_test7();
+NOTICE:  nva = {"{2,3,5}","{55,6,73}","{2,4}","{2,3,5}"}
+NOTICE:  nva = {"{2,3,5}","{55,6,73}","{2,4}","{2,3,5}"}
+NOTICE:  nva3 = {"{\"{2,3,5}\",\"{55,6,73}\",\"{2,4}\",\"{2,3,5}\"}","{\"{2,3,5}\",\"{55,6,73}\",\"{2,4}\",\"{2,3,5}\"}"}
+ERROR:  invalid input syntax for type integer: "{2,3,5}"
+CONTEXT:  PL/hgSQL function test_varray_multiple_dimensions_err_test7() line 13 at assignment
+create function test_varray_multiple_dimensions_err_test8() returns VOID as $$
+DECLARE
+ TYPE t1 IS VARRAY(11) OF INTEGER;
+ va t1 := t1(2,3,5);
+ TYPE nt1 IS VARRAY(22) OF t1; 
+ nva nt1 := nt1(va, t1(55,6,73), t1(2,4), va);
+ TYPE nt3 IS VARRAY(33) OF nt1;
+ nva3 nt3 := nt3(nva, nva);
+BEGIN
+ raise notice 'nva = %',nva;
+ raise notice 'nva = %',nva;
+ raise notice 'nva3 = %',nva3;
+ va = nva3(1)(1)(1);
+ --nva(1) = nva3;
+ raise notice 'va = %',va;
+ raise notice 'nva = %',nva;
+ raise notice 'nva3 = %',nva3;
+end; $$ language plisql; 
+select test_varray_multiple_dimensions_err_test8();
+NOTICE:  nva = {"{2,3,5}","{55,6,73}","{2,4}","{2,3,5}"}
+NOTICE:  nva = {"{2,3,5}","{55,6,73}","{2,4}","{2,3,5}"}
+NOTICE:  nva3 = {"{\"{2,3,5}\",\"{55,6,73}\",\"{2,4}\",\"{2,3,5}\"}","{\"{2,3,5}\",\"{55,6,73}\",\"{2,4}\",\"{2,3,5}\"}"}
+ERROR:  expression is of wrong type, [int4] to [t1]
+CONTEXT:  PL/hgSQL function test_varray_multiple_dimensions_err_test8() line 13 at assignment
+create or replace function test_varray_func1() returns varray as $$
+DECLARE
+ TYPE va_type is varray(77) of integer;
+ var va_type:= va_type(1,2,3);
+BEGIN
+ raise notice 'test_varray_func1:var=%', var;
+ var.delete;
+ return var;
+end; $$ language plisql;
+create or replace function test_varray_func2() returns VOID as $$
+DECLARE
+ TYPE va_type is varray(99) of integer;
+ var va_type:= va_type(11,22,33);
+BEGIN
+ raise notice 'test_varray_func1 return %', test_varray_func1();
+ raise notice 'test_varray_func2:var=%', var;
+ var.delete;
+ raise notice 'test_varray_func2:var=%', var;
+end; $$ language plisql;
+select test_varray_func2();
+NOTICE:  test_varray_func1:var={1,2,3}
+ERROR:  Subscript beyond count
+DETAIL:  A subscript was greater than the limit of a varray or non-positive for a varray or nested table. the varry was deleted
+CONTEXT:  PL/hgSQL function test_varray_func2() line 6 at RAISE
+create or replace function test_varray_func1() returns varray as $$
+DECLARE
+ TYPE va_type as varray(77) of integer;
+ var va_type:= va_type(1,2,3);
+BEGIN
+ raise notice 'test_varray_func1:var=%', var;
+ var.trim();
+ return var;
+end; $$ language plisql;
+create or replace function test_varray_func2() returns VOID as $$
+DECLARE
+ TYPE va_type is varray(99) of integer;
+ var va_type:= va_type(11,22,33);
+BEGIN
+ raise notice 'test_varray_func1 return %', test_varray_func1();
+ raise notice 'test_varray_func2:var=%', var;
+ var.trim();
+ raise notice 'test_varray_func2:var=%', var;
+end; $$ language plisql;
+select test_varray_func2();
+NOTICE:  test_varray_func1:var={1,2,3}
+NOTICE:  test_varray_func1 return {1,2}
+NOTICE:  test_varray_func2:var={11,22,33}
+NOTICE:  test_varray_func2:var={11,22}
+ test_varray_func2 
+-------------------
+ 
+(1 row)
+
+create or replace function test_varray_func1() returns varray as $$
+DECLARE
+ TYPE va_type is varray(77) of integer;
+ var va_type:= va_type(1,2,3);
+BEGIN
+ raise notice 'test_varray_func1:var=%', var;
+ var.extend;
+ var(4) = 4;
+ return var;
+end; $$ language plisql;
+create or replace function test_varray_func2() returns VOID as $$
+DECLARE
+ TYPE va_type is varray(99) of integer;
+ var va_type:= va_type(11,22,33);
+BEGIN
+ raise notice 'test_varray_func1 return %', test_varray_func1();
+ raise notice 'test_varray_func2:var=%', var;
+ var.extend();
+ raise notice 'test_varray_func2:var=%', var;
+end; $$ language plisql;
+select test_varray_func2();
+NOTICE:  test_varray_func1:var={1,2,3}
+NOTICE:  test_varray_func1 return {1,2,3,4}
+NOTICE:  test_varray_func2:var={11,22,33}
+NOTICE:  test_varray_func2:var={11,22,33,NULL}
+ test_varray_func2 
+-------------------
+ 
+(1 row)
+
+create or replace function test_varray_func1() returns varray as $$
+DECLARE
+ TYPE va_type is varray(77) of integer;
+ var va_type:= va_type(1,2,3);
+ isexists bool;
+BEGIN
+ raise notice 'test_varray_func1:var=%', var;
+ var.extend(2);
+ FOR i IN 1..5 LOOP
+  isexists = var.exists(i);
+  IF isexists THEN
+   raise notice 'var(%) = %',i,var(i);
+  ELSE
+   raise notice 'var(%) does not exist',i;
+  END IF;
+ END LOOP;
+ return var;
+end; $$ language plisql;
+create or replace function test_varray_func2() returns VOID as $$
+DECLARE
+ TYPE va_type is varray(99) of integer;
+ var va_type:= va_type(11,22,33);
+ isexists bool;
+BEGIN
+ raise notice 'test_varray_func1 return %', test_varray_func1();
+ raise notice 'test_varray_func2:var=%', var;
+ var.extend(2);
+ var(4) = 44;
+ FOR i IN 1..5 LOOP
+ isexists = var.exists(i);
+  IF isexists THEN
+   raise notice 'var(%) = %',i,var(i);
+  ELSE
+   raise notice 'var(%) does not exist',i;
+  END IF;
+ END LOOP;
+ raise notice 'test_varray_func2:var=%', var;
+end; $$ language plisql;
+select test_varray_func2();
+NOTICE:  test_varray_func1:var={1,2,3}
+NOTICE:  var(1) = 1
+NOTICE:  var(2) = 2
+NOTICE:  var(3) = 3
+NOTICE:  var(4) = <NULL>
+NOTICE:  var(5) = <NULL>
+NOTICE:  test_varray_func1 return {1,2,3,NULL,NULL}
+NOTICE:  test_varray_func2:var={11,22,33}
+NOTICE:  var(1) = 11
+NOTICE:  var(2) = 22
+NOTICE:  var(3) = 33
+NOTICE:  var(4) = 44
+NOTICE:  var(5) = <NULL>
+NOTICE:  test_varray_func2:var={11,22,33,44,NULL}
+ test_varray_func2 
+-------------------
+ 
+(1 row)
+
+create or replace function test_varray_func1() returns varray as $$
+DECLARE
+ TYPE va_type is varray(77) of integer;
+ var va_type:= va_type(1,2,3);
+BEGIN
+ raise notice 'test_varray_func1:var=%', var;
+ raise notice 'var.first = %',var.first();
+ raise notice 'var.last = %',var.last();
+ var.extend();
+ var(3) = '333';
+ var(4) = '444';
+ var(7) = '777';
+ raise notice 'var.first = %',var.first();
+ raise notice 'var.last = %',var.last();
+ return var;
+end; $$ language plisql;
+create or replace function test_varray_func2() returns VOID as $$
+DECLARE
+ TYPE va_type is varray(99) of integer;
+ var va_type:= va_type(11,22,33);
+BEGIN
+ raise notice 'test_varray_func1 return %', test_varray_func1();
+ raise notice 'test_varray_func2:var=%', var;
+ raise notice 'var.first = %',var.first();
+ raise notice 'var.last = %',var.last();
+ var.extend();
+ var(3) = '33333';
+ var(4) = '444444';
+ var(7) = '7777777';
+ raise notice 'var.first = %',var.first();
+ raise notice 'var.last = %',var.last();
+ raise notice 'test_varray_func2:var=%', var;
+end; $$ language plisql;
+select test_varray_func2();
+NOTICE:  test_varray_func1:var={1,2,3}
+NOTICE:  var.first = 1
+NOTICE:  var.last = 3
+ERROR:  Subscript(7) outside of limit (4)
+DETAIL:  An in-limit subscript was greater than the count of a varray or too large for a nested table.
+CONTEXT:  PL/hgSQL function test_varray_func1() line 12 at assignment
+PL/hgSQL function test_varray_func2() line 6 at RAISE
+create or replace function test_varray_func1() returns varray as $$
+DECLARE
+ TYPE va_type is varray(77) of integer;
+ var va_type:= va_type(1,2,3);
+BEGIN
+ raise notice 'test_varray_func1:var=%', var;
+ raise notice 'var.first = %',var.first();
+ raise notice 'var.last = %',var.last();
+ var.extend(6);
+ var(3) = '333';
+ var(4) = '444';
+ var(7) = '777';
+ raise notice 'var.first = %',var.first();
+ raise notice 'var.last = %',var.last();
+ return var;
+end; $$ language plisql;
+create or replace function test_varray_func2() returns VOID as $$
+DECLARE
+ TYPE va_type is varray(99) of integer;
+ var va_type:= va_type(11,22,33);
+BEGIN
+ raise notice 'test_varray_func1 return %', test_varray_func1();
+ raise notice 'test_varray_func2:var=%', var;
+ raise notice 'var.first = %',var.first();
+ raise notice 'var.last = %',var.last();
+ var.extend(6);
+ var(3) = '333333';
+ var(4) = '444444';
+ var(7) = '777777';
+ raise notice 'var.first = %',var.first();
+ raise notice 'var.last = %',var.last();
+ raise notice 'test_varray_func2:var=%', var;
+end; $$ language plisql;
+select test_varray_func2();
+NOTICE:  test_varray_func1:var={1,2,3}
+NOTICE:  var.first = 1
+NOTICE:  var.last = 3
+NOTICE:  var.first = 1
+NOTICE:  var.last = 9
+NOTICE:  test_varray_func1 return {1,2,333,444,NULL,NULL,777,NULL,NULL}
+NOTICE:  test_varray_func2:var={11,22,33}
+NOTICE:  var.first = 1
+NOTICE:  var.last = 3
+NOTICE:  var.first = 1
+NOTICE:  var.last = 9
+NOTICE:  test_varray_func2:var={11,22,333333,444444,NULL,NULL,777777,NULL,NULL}
+ test_varray_func2 
+-------------------
+ 
+(1 row)
+
+create or replace function test_varray_func1() returns varray as $$
+DECLARE
+ TYPE va_type is varray(77) of integer;
+ var va_type:= va_type(1,2,3);
+BEGIN
+ raise notice 'test_varray_func1:var=%', var;
+ var.EXTEND(4);
+ raise notice 'var.last = %',var.last();
+ raise notice 'var.count = %',var.count();
+ var.trim(3);
+ raise notice 'var = %',var;
+ raise notice 'var.last = %',var.last();
+ raise notice 'var.count = %',var.count();
+ return var;
+end; $$ language plisql;
+create or replace function test_varray_func2() returns VOID as $$
+DECLARE
+ TYPE va_type is varray(99) of integer;
+ var va_type:= va_type(11,22,33);
+BEGIN
+ raise notice 'test_varray_func1 return %', test_varray_func1();
+ raise notice 'test_varray_func2:var=%', var;
+ var.EXTEND(5);
+ raise notice 'var.last = %',var.last();
+ raise notice 'var.count = %',var.count();
+ var.trim(3);
+ raise notice 'var = %',var;
+ raise notice 'var.last = %',var.last();
+ raise notice 'var.count = %',var.count();
+ raise notice 'test_varray_func2:var=%', var;
+end; $$ language plisql;
+select test_varray_func2();
+NOTICE:  test_varray_func1:var={1,2,3}
+NOTICE:  var.last = 7
+NOTICE:  var.count = 7
+NOTICE:  var = {1,2,3,NULL}
+NOTICE:  var.last = 4
+NOTICE:  var.count = 4
+NOTICE:  test_varray_func1 return {1,2,3,NULL}
+NOTICE:  test_varray_func2:var={11,22,33}
+NOTICE:  var.last = 8
+NOTICE:  var.count = 8
+NOTICE:  var = {11,22,33,NULL,NULL}
+NOTICE:  var.last = 5
+NOTICE:  var.count = 5
+NOTICE:  test_varray_func2:var={11,22,33,NULL,NULL}
+ test_varray_func2 
+-------------------
+ 
+(1 row)
+
+create or replace function test_varray_func1() returns varray as $$
+DECLARE
+ TYPE va_type is varray(77) of integer;
+ var va_type:= va_type(1,2,3);
+BEGIN
+ raise notice 'test_varray_func1:var=%', var;
+ raise notice 'var.COUNT = %',var.COUNT();
+ raise notice 'var.LIMIT = %',var.limit;
+ return var;
+end; $$ language plisql;
+create or replace function test_varray_func2() returns VOID as $$
+DECLARE
+ TYPE va_type is varray(99) of integer;
+ var va_type:= va_type(11,22,33);
+BEGIN
+ raise notice 'test_varray_func1 return %', test_varray_func1();
+ raise notice 'test_varray_func2:var=%', var;
+ raise notice 'var.COUNT = %',var.COUNT();
+ raise notice 'var.LIMIT = %',var.limit;
+ raise notice 'test_varray_func2:var=%', var;
+end; $$ language plisql;
+select test_varray_func2();
+NOTICE:  test_varray_func1:var={1,2,3}
+NOTICE:  var.COUNT = 3
+NOTICE:  var.LIMIT = 77
+NOTICE:  test_varray_func1 return {1,2,3}
+NOTICE:  test_varray_func2:var={11,22,33}
+NOTICE:  var.COUNT = 3
+NOTICE:  var.LIMIT = 99
+NOTICE:  test_varray_func2:var={11,22,33}
+ test_varray_func2 
+-------------------
+ 
+(1 row)
+
+create or replace function test_varray_func1() returns varray as $$
+DECLARE
+ TYPE va_type is varray(77) of integer;
+ var va_type:= va_type(1,2,3);
+BEGIN
+ raise notice 'test_varray_func1:var=%', var;
+ raise notice 'var.prior(3) = %',var.prior (3);
+ raise notice 'var.next(3) = %',var.next (3);
+ raise notice 'var.prior(3400) = %',var.prior (3400);
+ raise notice 'var.next(3400) = %',var.next (3400);
+ return var;
+end; $$ language plisql;
+create or replace function test_varray_func2() returns VOID as $$
+DECLARE
+ TYPE va_type is varray(99) of integer;
+ var va_type:= va_type(11,22,33);
+BEGIN
+ raise notice 'test_varray_func1 return %', test_varray_func1();
+ raise notice 'test_varray_func2:var=%', var;
+ raise notice 'var.prior(2) = %',var.prior (2);
+ raise notice 'var.next(2) = %',var.next (2);
+ raise notice 'var.prior(3400) = %',var.prior (3400);
+ raise notice 'var.next(3400) = %',var.next (3400);
+ raise notice 'test_varray_func2:var=%', var;
+end; $$ language plisql;
+select test_varray_func2();
+NOTICE:  test_varray_func1:var={1,2,3}
+NOTICE:  var.prior(3) = 2
+NOTICE:  var.next(3) = <NULL>
+NOTICE:  var.prior(3400) = 3
+NOTICE:  var.next(3400) = <NULL>
+NOTICE:  test_varray_func1 return {1,2,3}
+NOTICE:  test_varray_func2:var={11,22,33}
+NOTICE:  var.prior(2) = 1
+NOTICE:  var.next(2) = 3
+NOTICE:  var.prior(3400) = 3
+NOTICE:  var.next(3400) = <NULL>
+NOTICE:  test_varray_func2:var={11,22,33}
+ test_varray_func2 
+-------------------
+ 
+(1 row)
+
+--
+--Determine whether the test is empty
+--
+create or replace function is_null_test1() returns VOID as $$
+DECLARE
+ TYPE nt_type IS VARRAY(11) OF text;
+ team nt_type; 
+ TYPE nt1_type IS VARRAY(22) OF text; 
+ names nt1_type := nt1_type('zhangsan', 'lisi'); 
+BEGIN
+ IF team IS NULL THEN
+  raise notice 'team IS NULL';
+ ELSE
+  raise notice 'team IS NOT NULL';
+ END IF;
+ IF names IS NOT NULL THEN
+  raise notice 'names IS NOT NULL';
+ ELSE
+  raise notice 'names IS NULL';
+ END IF; 
+end; $$ language plisql;
+select is_null_test1();
+NOTICE:  team IS NULL
+NOTICE:  names IS NOT NULL
+ is_null_test1 
+---------------
+ 
+(1 row)
+
+create or replace function is_null_test2() returns VOID as $$
+DECLARE
+ TYPE nt_type IS VARRAY(11) OF text;
+ team nt_type; 
+ TYPE nt1_type IS VARRAY(22) OF nt_type; 
+ names nt1_type := nt1_type(nt_type('zhangsan'),team); 
+BEGIN
+ IF team IS NULL THEN
+  raise notice 'team IS NULL';
+ ELSE
+  raise notice 'team IS NOT NULL';
+ END IF;
+ 
+ IF names IS NOT NULL THEN
+  raise notice 'names IS NOT NULL';
+ ELSE
+  raise notice 'names IS NULL';
+ END IF; 
+ 
+ IF names(1) IS NOT NULL THEN
+  raise notice 'names(1) IS NOT NULL';
+ ELSE
+  raise notice 'names(1) IS NULL';
+ END IF; 
+ IF names(2) IS NOT NULL THEN
+  raise notice 'names(2) IS NOT NULL';
+ ELSE
+  raise notice 'names(2) IS NULL';
+ END IF; 
+end; $$ language plisql;
+select is_null_test2();
+NOTICE:  team IS NULL
+NOTICE:  names IS NOT NULL
+NOTICE:  names(1) IS NOT NULL
+NOTICE:  names(2) IS NULL
+ is_null_test2 
+---------------
+ 
+(1 row)
+
+--
+--nested call function
+--
+create or replace function test_varray_multiple_dimensions10() return VOID as
+DECLARE
+ TYPE t1 IS VARRAY(11) OF INTEGER;
+ va t1 := t1(2,3,5);
+ TYPE nt1 IS VARRAY(22) OF t1;
+ nva nt1 := nt1(va, t1(55,6,73), t1(2,4), va);
+ TYPE nt2 IS VARRAY(22) OF nt1;
+ vat2 nt2 := nt2(nva, nt1(va, t1(1, 2, 3)));
+BEGIN
+ va.Extend(1,1);
+ nva(4) := t1(45,43,67,43345);
+ nva(4).EXTEND;
+ nva(4)(4) := 89;
+ raise notice 'va = %',va;
+ raise notice 'nva = %',nva;
+ raise notice 'vat2 = %',vat2;
+ vat2(2)(1).extend;
+ vat2(2)(1)(4) := 6;
+ raise notice 'vat2 = %',vat2;
+end;
+/
+select test_varray_multiple_dimensions10();
+NOTICE:  va = {2,3,5,2}
+NOTICE:  nva = {"{2,3,5}","{55,6,73}","{2,4}","{45,43,67,89,NULL}"}
+NOTICE:  vat2 = {"{\"{2,3,5}\",\"{55,6,73}\",\"{2,4}\",\"{2,3,5}\"}","{\"{2,3,5}\",\"{1,2,3}\"}"}
+NOTICE:  vat2 = {"{\"{2,3,5}\",\"{55,6,73}\",\"{2,4}\",\"{2,3,5}\"}","{\"{2,3,5,6}\",\"{1,2,3}\"}"}
+ test_varray_multiple_dimensions10 
+-----------------------------------
+ 
+(1 row)
+
+create or replace function test_varray_func3() returns VOID as $$
+DECLARE
+ TYPE t1 IS VARRAY(11) OF INTEGER; -- varray of integer
+ va t1 := t1(2,3,5);
+ TYPE nt1 IS VARRAY(22) OF t1; -- varray of varray of integer
+ nva nt1 := nt1(va, t1(55,6,73), t1(2,4), va);
+ flg bool;
+BEGIN
+ va.extend(2);
+ raise notice 'isexists = %',va.exists(6);
+ raise notice 'isexists = %',nva(2).exists(2);
+ raise notice 'isexists = %',nva(2).exists(5);
+ raise notice 'isexists = %',nva(2)(3).exists(2);
+end; $$ language plisql;
+select test_varray_func3();
+NOTICE:  isexists = f
+NOTICE:  isexists = t
+NOTICE:  isexists = f
+ERROR:  The reference to the variable " int4 "is invalid
+CONTEXT:  SQL statement "SELECT nva(2)(3).exists(2)"
+PL/hgSQL function test_varray_func3() line 13 at RAISE
+--
+--type is UDT
+--
+create type type1 as object (tname varchar(20), id int,
+	member function func_1 return int);
+create type body type1 as
+	member function func_1 return int as
+	begin
+		return 11;
+	end;
+end;
+/
+create or replace function test_varray_multiple_dimensions11() return VOID as
+DECLARE
+ TYPE t1 IS VARRAY(11) OF type1;
+ va t1 := t1(type1('aa', 1), type1('bb', type1('cc', 2).func_1));
+BEGIN
+ raise notice 'va = %',va;
+ va.Extend(1,1);
+ raise notice 'va = %',va;
+ va(3) := type1('dd', 3);
+ raise notice 'va = %',va;
+end;
+/
+select test_varray_multiple_dimensions11();
+NOTICE:  va = {"(aa,1)","(bb,11)"}
+NOTICE:  va = {"(aa,1)","(bb,11)","(aa,1)"}
+NOTICE:  va = {"(aa,1)","(bb,11)","(dd,3)"}
+ test_varray_multiple_dimensions11 
+-----------------------------------
+ 
+(1 row)

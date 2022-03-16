@@ -67,7 +67,8 @@ typedef enum PLiSQL_datum_type
 	PLISQL_DTYPE_REC,
 	PLISQL_DTYPE_RECFIELD,
 	PLISQL_DTYPE_PROMISE,
-	PLISQL_DTYPE_REFCURSOR
+	PLISQL_DTYPE_REFCURSOR,
+	PLISQL_DTYPE_CTYPE
 } PLiSQL_datum_type;
 
 /*
@@ -96,7 +97,8 @@ typedef enum PLiSQL_type_type
 {
 	PLISQL_TTYPE_SCALAR,		/* scalar types and domains */
 	PLISQL_TTYPE_REC,			/* composite types, including RECORD */
-	PLISQL_TTYPE_PSEUDO		/* pseudotypes */
+	PLISQL_TTYPE_PSEUDO,		/* pseudotypes */
+	PLISQL_TTYPE_CTYPE			/* collection type */
 } PLiSQL_type_type;
 
 /*
@@ -212,6 +214,11 @@ typedef struct PLiSQL_type
 	TypeName   *origtypname;	/* type name as written by user */
 	TypeCacheEntry *tcache;		/* typcache entry for composite type */
 	uint64		tupdesc_id;		/* last-seen tupdesc identifier */
+	/* add collection type */
+	int32		ctypemaxlen;
+	Oid			elemOid;		/* -1:invalid user-defined */
+	int32		elemmod;		/* mod of define collection type element */
+	bool		typisnested;	/* is nested table type? */
 } PLiSQL_type;
 
 /*
@@ -322,6 +329,8 @@ typedef struct PLiSQL_var
 	Oid			pkgoid;			/* Oid of the package */
 	int			pkgdno;
 	PLiSQL_type *datatype;
+
+	bool		isctype;		/* whether is collection type */
 
 	/*
 	 * Variables declared as CURSOR FOR <query> are mostly like ordinary
@@ -1399,5 +1408,7 @@ extern void package_HashTableDelete(PLiSQL_package *pkg);
 extern PLiSQL_datum *lookup_package_var(PLiSQL_package *pkg, Oid vartype,
 										 char *varname);
 extern void delete_package_state_oid(Oid pkgoid);
+extern PLiSQL_datum * plisql_find_datums_by_name(char *datum_name);
+extern PLiSQL_datum *plisql_find_datums_by_indx(int indx);
 
 #endif							/* PLISQL_H */
