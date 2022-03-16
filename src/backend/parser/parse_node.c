@@ -29,6 +29,7 @@
 #include "utils/lsyscache.h"
 #include "utils/syscache.h"
 #include "utils/varbit.h"
+#include "catalog/namespace.h"
 
 static void pcb_error_callback(void *arg);
 
@@ -196,26 +197,6 @@ void
 transformContainerType(ParseState *pstate, Oid *containerType, int32 *containerTypmod)
 {
 	/*
-	 * get elemtype oid of varray or nested table
-	 */
-	if (*containerType == TypenameGetTypid("varray") ||
-		*containerType == TypenameGetTypid("nestedtab"))
-	{
-		Oid tempoid;
-		int32 tempmod;
-		int32 ctypemaxlen;
-
-		tempoid = *containerType;
-		tempmod = *containerTypmod;
-		if (pstate->p_find_ctype_by_oidmod_hook != NULL)
-		{
-			tempoid = pstate->p_find_ctype_by_oidmod_hook(pstate, NULL, &tempoid, &tempmod, &ctypemaxlen, 1);
-			*containerType = tempoid;
-			*containerTypmod = tempmod;
-		}
-	}
-
-	/*
 	 * If the input is a domain, smash to base type, and extract the actual
 	 * typmod to be applied to the base type. Subscripting a domain is an
 	 * operation that necessarily works on the base container type, not the
@@ -316,6 +297,24 @@ transformContainerSubscripts(ParseState *pstate,
 						format_type_be(containerType)),
 				 parser_errposition(pstate, exprLocation(containerBase))));
 
+	/*
+	 * get elemtype oid of varray or nested table
+	 */
+	if (containerType == TypenameGetTypid("varray") ||
+		containerType == TypenameGetTypid("nestedtab"))
+	{
+		Oid tempoid;
+		int32 tempmod;
+		int32 ctypemaxlen;
+
+		tempoid = containerType;
+		tempmod = containerTypMod;
+		if (pstate->p_find_ctype_by_oidmod_hook != NULL)
+		{
+			tempoid = pstate->p_find_ctype_by_oidmod_hook(pstate, NULL, &tempoid, &tempmod, &ctypemaxlen, 1);
+			elementType = tempoid;
+		}
+	}
 	/*
 	 * Detect whether any of the indirection items are slice specifiers.
 	 *
