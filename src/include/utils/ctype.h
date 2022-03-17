@@ -13,6 +13,9 @@
 #define CTYPE_H
 
 #include "utils/array.h"
+#include "utils/fmgrprotos.h"
+#include "utils/arrayaccess.h"
+#include "utils/lsyscache.h"
 
 /* Collection type mark */
 #define CTYPE_MARK 0x100

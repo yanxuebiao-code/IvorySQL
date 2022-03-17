@@ -313,6 +313,7 @@ transformContainerSubscripts(ParseState *pstate,
 		{
 			tempoid = pstate->p_find_ctype_by_oidmod_hook(pstate, NULL, &tempoid, &tempmod, &ctypemaxlen, 1);
 			elementType = tempoid;
+			containerTypMod = tempmod;
 		}
 	}
 	/*
