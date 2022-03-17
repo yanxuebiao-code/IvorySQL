@@ -692,4 +692,16 @@
   typreceive => 'brin_minmax_multi_summary_recv',
   typsend => 'brin_minmax_multi_summary_send', typalign => 'i',
   typstorage => 'x', typcollation => 'default' },
+
+#collection type
+{ oid => '6107', descr => 'varray type',
+  typname => 'varray', typlen => '-1', typbyval => 'f',
+  typtype => 'b', typcategory => 'S', typsubscript => 'array_subscript_handler',
+  typinput => 'varray_in', typoutput => 'varray_out', typreceive => '-', typsend => '-',
+  typalign => 'i' }
+{ oid => '6108', descr => 'nested table type',
+  typname => 'nestedtab', typlen => '-1', typbyval => 'f',
+  typtype => 'b', typcategory => 'S', typsubscript => 'array_subscript_handler',
+  typinput => 'nested_in', typoutput => 'nested_out', typreceive => '-', typsend => '-',
+  typalign => 'i' }
 ]

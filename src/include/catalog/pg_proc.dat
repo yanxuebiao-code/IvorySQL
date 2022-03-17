@@ -11757,4 +11757,17 @@
   prorettype => 'bytea', proargtypes => 'pg_brin_minmax_multi_summary',
   prosrc => 'brin_minmax_multi_summary_send' },
 
+#input/output function for collection type
+{ oid => '6122', descr => 'I/O',
+  proname => 'varray_in', provolatile => 's', prorettype => 'varray',
+  proargtypes => 'cstring', prosrc => 'collection_in' },
+{ oid => '6123', descr => 'I/O',
+  proname => 'varray_out', provolatile => 's', prorettype => 'cstring',
+  proargtypes => 'varray', prosrc => 'collection_out' },
+{ oid => '6124', descr => 'I/O',
+  proname => 'nested_in', provolatile => 's', prorettype => 'nestedtab',
+  proargtypes => 'cstring', prosrc => 'collection_in' },
+{ oid => '6125', descr => 'I/O',
+  proname => 'nested_out', provolatile => 's', prorettype => 'cstring',
+  proargtypes => 'nestedtab', prosrc => 'collection_out' },
 ]
