@@ -828,6 +828,9 @@ subquery_planner(PlannerGlobal *glob, Query *parse,
 	parse->limitCount = preprocess_expression(root, parse->limitCount,
 											  EXPRKIND_LIMIT);
 
+	parse->percentClause = preprocess_expression(root, parse->percentClause,
+												 EXPRKIND_LIMIT);
+
 	if (parse->onConflict)
 	{
 		parse->onConflict->arbiterElems = (List *)

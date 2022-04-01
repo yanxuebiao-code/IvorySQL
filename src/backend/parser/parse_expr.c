@@ -289,6 +289,10 @@ transformExprRecurse(ParseState *pstate, Node *expr)
 										((SetToDefault *) expr)->location)));
 			break;
 
+		case T_PercentClause:
+			result = transformExprRecurse(pstate, ((PercentClause *)expr)->expr);
+			break;
+
 			/*
 			 * CaseTestExpr doesn't require any processing; it is only
 			 * injected into parse trees in a fully-formed state.

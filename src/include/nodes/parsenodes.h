@@ -171,6 +171,8 @@ typedef struct Query
 
 	List	   *sortClause;		/* a list of SortGroupClause's */
 
+	Node	   *percentClause;	/* percent clause */
+
 	Node	   *limitOffset;	/* # of result tuples to skip (int8 expr) */
 	Node	   *limitCount;		/* # of result tuples to return (int8 expr) */
 	LimitOption limitOption;	/* limit type */
@@ -1739,6 +1741,7 @@ typedef struct SelectStmt
 	bool		groupDistinct;	/* Is this GROUP BY DISTINCT? */
 	Node	   *havingClause;	/* HAVING conditional-expression */
 	List	   *windowClause;	/* WINDOW window_name AS (...), ... */
+	Node	   *percentClause;	/* the PERCENT clause */
 
 	/*
 	 * In a "leaf" node representing a VALUES list, the above fields are all
@@ -2244,6 +2247,17 @@ typedef struct VariableShowStmt
 	NodeTag		type;
 	char	   *name;
 } VariableShowStmt;
+
+/* ----------------------
+ * Percent Statement
+ * ----------------------
+ */
+typedef struct PercentClause
+{
+	NodeTag		type;
+	Node	   *expr;
+	int		   location;
+} PercentClause;
 
 /* ----------------------
  *		Create Table Statement

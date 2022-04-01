@@ -1793,6 +1793,31 @@ transformLimitClause(ParseState *pstate, Node *clause,
 }
 
 /*
+ * transformPercentClause
+ * transform percent clause in parser.
+ */
+Node *
+transformPercentClause(ParseState *pstate, Node *clause, Node *limitOffset, Node *limitCount,
+								 ParseExprKind exprKind, const char *constructName)
+{
+	Node	   *percentClause;
+
+	if (clause == NULL)
+		return NULL;
+
+	if (limitOffset || limitCount)
+		ereport(ERROR,
+				(errcode(ERRCODE_INVALID_ROW_COUNT_IN_LIMIT_CLAUSE),
+				 errmsg("PERCENT clause and LIMIT clause can not use together")));
+
+	percentClause = transformExpr(pstate, clause, exprKind);
+
+	percentClause = coerce_to_specific_type(pstate, percentClause, INT8OID, constructName);
+
+	return percentClause;
+}
+
+/*
  * checkExprIsVarFree
  *		Check that given expr has no Vars of the current query level
  *		(aggregates and window functions should have been rejected already).

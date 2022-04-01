@@ -1344,6 +1344,14 @@ transformSelectStmt(ParseState *pstate, SelectStmt *stmt)
 		qry->hasDistinctOn = true;
 	}
 
+	/* transform PERCENT */
+	qry->percentClause = transformPercentClause(pstate,
+												stmt->percentClause,
+												stmt->limitOffset,
+												stmt->limitCount,
+												EXPR_KIND_PERCENT,
+												"PERCENT");
+
 	/* transform LIMIT */
 	qry->limitOffset = transformLimitClause(pstate, stmt->limitOffset,
 											EXPR_KIND_OFFSET, "OFFSET",
@@ -1352,6 +1360,7 @@ transformSelectStmt(ParseState *pstate, SelectStmt *stmt)
 										   EXPR_KIND_LIMIT, "LIMIT",
 										   stmt->limitOption);
 	qry->limitOption = stmt->limitOption;
+
 
 	/* transform window clauses after we have seen all window functions */
 	qry->windowClause = transformWindowDefinitions(pstate,

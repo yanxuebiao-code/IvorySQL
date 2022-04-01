@@ -673,6 +673,7 @@ static void check_pkgname(List *pkgname, char *end_name, core_yyscan_t yyscanner
 %type <startWith>	start_with_clause opt_start_with_clause
 %type <connectBy>	connect_by_clause
 %type <boolean>		opt_nocycle
+%type <node>	percent_clause
 
 /*
  * Non-keyword token types.  These are hard-wired into the "flex" lexer.
@@ -795,7 +796,7 @@ static void check_pkgname(List *pkgname, char *end_name, core_yyscan_t yyscanner
 
 	/* IvorySQL new-keyword */
 	AUTHID PACKAGE BODY ROWTYPE_P ELSIF EXCEPTION LOOP WHILE SYS_CONNECT_BY_PATH
-	CONNECT_BY_ROOT CONNECTBY
+	CONNECT_BY_ROOT CONNECTBY PERCENT_P
 
 /*
  * The grammar thinks these are keywords, but they are not in the kwlist.h
@@ -12542,6 +12543,22 @@ simple_select:
 					n->windowClause = $10;
 					$$ = (Node *)n;
 				}
+			| SELECT opt_all_clause percent_clause target_list
+			into_clause from_clause where_clause
+			group_clause having_clause window_clause
+				{
+					SelectStmt *n = makeNode(SelectStmt);
+					n->percentClause = $3;
+					n->targetList = $4;
+					n->intoClause = $5;
+					n->fromClause = $6;
+					n->whereClause = $7;
+					n->groupClause = ($8)->list;
+					n->groupDistinct = ($8)->distinct;
+					n->havingClause = $9;
+					n->windowClause = $10;
+					$$ = (Node *)n;
+				}
 			| SELECT distinct_clause target_list
 			into_clause from_clause where_clause
 			group_clause having_clause window_clause
@@ -13706,6 +13723,15 @@ opt_ordinality: WITH_LA ORDINALITY					{ $$ = true; }
 			| /*EMPTY*/								{ $$ = false; }
 		;
 
+percent_clause: a_expr PERCENT_P
+				{
+					PercentClause *n= makeNode(PercentClause);
+					n->expr = $1;
+					n->location = @1;
+
+					$$ = (Node *)n;
+				}
+		;
 
 where_clause:
 			WHERE a_expr							{ $$ = $2; }
@@ -17157,6 +17183,7 @@ reserved_keyword:
 			| ONLY
 			| OR
 			| ORDER
+			| PERCENT_P
 			| PLACING
 			| PRIMARY
 			| PRIOR
@@ -17462,6 +17489,7 @@ bare_label_keyword:
 			| PARTITION
 			| PASSING
 			| PASSWORD
+			| PERCENT_P
 			| PLACING
 			| PLANS
 			| POLICY
